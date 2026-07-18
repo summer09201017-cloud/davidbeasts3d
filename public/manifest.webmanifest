@@ -1,0 +1,24 @@
+{
+  "name": "3D 參孫打獅子・真3D競技場",
+  "short_name": "參孫打獅子",
+  "description": "士師記十四章——赤手空拳的參孫,倚靠耶和華的靈,在亭拿的葡萄園制伏吼叫的少壯獅子。",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09131d",
+  "theme_color": "#0d1f2b",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
