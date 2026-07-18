@@ -752,3 +752,33 @@ button.active {
 
 /* [hidden] 全域修正(檔尾,已有的局部 [hidden] 規則保留在上方) */
 [hidden] { display: none !important; }
+
+/* ── 死神模式恐怖演出(beast-boss-kit §3;鎖 death 難度) ── */
+#fangFlash { position: fixed; inset: 0; z-index: 90; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(60,0,0,0.25), rgba(0,0,0,0.82) 78%); }
+#fangFlash.show { animation: fangIn 0.3s ease-out 1; } /* 單次,不循環=不爆閃 */
+@keyframes fangIn { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+#fangFlash .fang { position: absolute; left: 0; right: 0; height: 26vh; background: #f2ead8; }
+#fangFlash .fang.top { top: -4vh;
+  clip-path: polygon(0 0,100% 0,100% 30%,92% 96%,84% 34%,76% 88%,68% 30%,60% 99%,52% 32%,44% 90%,36% 30%,28% 97%,20% 34%,12% 88%,4% 30%,0 92%); }
+#fangFlash .fang.bottom { bottom: -4vh; transform: scaleY(-1);
+  clip-path: polygon(0 0,100% 0,100% 30%,90% 92%,82% 32%,74% 96%,66% 30%,58% 88%,50% 34%,42% 98%,34% 30%,26% 90%,18% 32%,10% 95%,2% 30%,0 88%); }
+#darkHand { position: fixed; inset: 0; z-index: 91; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 100%, rgba(0,0,0,0.9), rgba(0,0,0,0.55) 60%, rgba(10,0,0,0.35)); }
+#darkHand .dh-heart { position: absolute; left: 50%; top: 38%; transform: translate(-50%,-50%);
+  font-size: 88px; color: #d61f2c; text-shadow: 0 0 28px rgba(214,31,44,0.8); }
+#darkHand.play .dh-heart { animation: dhHeart 2s ease-in 1 forwards; }
+@keyframes dhHeart { 0%,55% { transform: translate(-50%,-50%) scale(1); opacity: 1; }
+  70% { transform: translate(-50%,-50%) scale(1.25); } 100% { transform: translate(-50%,20vh) scale(0.1); opacity: 0; } }
+#darkHand .dh-arm { position: absolute; left: 50%; bottom: -62vh; width: 120px; height: 66vh;
+  transform: translateX(-50%); }
+#darkHand.play .dh-arm { animation: dhRise 2s cubic-bezier(0.3,0.8,0.4,1) 1 forwards; }
+@keyframes dhRise { 0% { bottom: -66vh; } 55% { bottom: -8vh; } 78% { bottom: -6vh; } 100% { bottom: -70vh; } }
+#darkHand .dh-palm { position: absolute; top: 0; left: 10px; width: 100px; height: 130px; background: #050505;
+  border-radius: 42px 42px 20px 20px; box-shadow: 0 0 34px rgba(0,0,0,0.95); }
+#darkHand .dh-f { position: absolute; width: 24px; height: 78px; background: #050505; border-radius: 12px; top: -58px; }
+#darkHand .dh-f.f1 { left: 8px; transform: rotate(-14deg); }
+#darkHand .dh-f.f2 { left: 36px; top: -70px; }
+#darkHand .dh-f.f3 { left: 64px; top: -66px; }
+#darkHand .dh-f.f4 { left: 90px; transform: rotate(12deg); }
+#darkHand .dh-arm::after { content: ""; position: absolute; top: 120px; left: 26px; width: 68px; height: 100vh; background: #050505; }

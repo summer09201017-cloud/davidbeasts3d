@@ -221,6 +221,7 @@ function handleGameEvent(event) {
       } else {
         audio.thud(0.8);
         audio.vibrate(24);
+        if (game.difficulty === "death") fangFlash(); // 死神模式限定:獠牙閃現(單次 0.3s)
         const spoken = event.weapon === "獅爪" ? PHRASES[6] : PHRASES[7];
         pushCommentary(
           `被${event.weapon}擊中 -${event.dmg}——拉開距離再反擊!`,
@@ -238,6 +239,7 @@ function handleGameEvent(event) {
       break;
     }
     case "match-end": {
+      if (!event.win && game.difficulty === "death") playDarkHand(); // 死神模式限定:黑手抓心壞結局(嚇一下就收)
       const winText = "耶和華的靈大大感動參孫!手無器械,卻勝過吼叫的獅子!🦁";
       const loseText = "再試一次——能力不在乎自己,在乎耶和華的靈。";
       pushCommentary(
@@ -423,3 +425,23 @@ if ("serviceWorker" in navigator && !["localhost", "127.0.0.1"].includes(locatio
 }
 
 game.start();
+
+// ── 死神模式恐怖演出(beast-boss-kit §3;只在 death 難度被呼叫,分級鐵則)──
+function fangFlash() {
+  const el = document.getElementById("fangFlash");
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove("show");
+  void el.offsetWidth;
+  el.classList.add("show"); // CSS 單次 0.3s 淡入淡出,無連續爆閃(癲癇安全)
+  setTimeout(() => { el.hidden = true; el.classList.remove("show"); }, 340);
+}
+function playDarkHand() {
+  const el = document.getElementById("darkHand");
+  if (!el) return;
+  el.hidden = false;
+  el.classList.remove("play");
+  void el.offsetWidth;
+  el.classList.add("play"); // 黑手升起抓走心臟 ~2s,收掉後回到一般溫柔重試文案
+  setTimeout(() => { el.hidden = true; el.classList.remove("play"); }, 2100);
+}

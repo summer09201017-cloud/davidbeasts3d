@@ -200,6 +200,7 @@
                 <option value="easy">入門</option>
                 <option value="normal">標準</option>
                 <option value="hard">全力獅王</option>
+                <option value="death">死神(黑獅)⚠ 膽小勿入</option>
               </select>
 
               <label class="field-label" for="audioSelect">音效與播報</label>
@@ -230,6 +231,9 @@
     </div>
 
       <div class="power-panel-big" id="bigPower" hidden><span id="bigPowerLabel">重拳出手</span><div class="big-track"><div class="big-fill" id="bigPowerFill"></div></div></div>
+    <!-- 死神模式恐怖演出層(只在 death 難度觸發;beast-boss-kit §3) -->
+    <div id="fangFlash" hidden aria-hidden="true"><div class="fang top"></div><div class="fang bottom"></div></div>
+    <div id="darkHand" hidden aria-hidden="true"><div class="dh-heart">❤</div><div class="dh-arm"><div class="dh-palm"></div><div class="dh-f f1"></div><div class="dh-f f2"></div><div class="dh-f f3"></div><div class="dh-f f4"></div></div></div>
     <script type="module" src="/src/main.js"></script>
   <script>
   // play-stats 三層匿名計數(lobby-play-rank §3/§4):開啟 10 分去重;-start/-done 不去重;-done 帶 t=秒。零個資。

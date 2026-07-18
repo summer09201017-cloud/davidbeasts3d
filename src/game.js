@@ -17,6 +17,8 @@ export const DIFFICULTY_PRESETS = {
   easy: { maxFwd: 4.8, boost: 3.8, turnRate: 2.4, aiSkill: 0.55, aiCd: 1.55, aiDmg: 0.8, aiSpd: 0.68, assist: 0.15 },
   normal: { maxFwd: 5.4, boost: 4.4, turnRate: 2.35, aiSkill: 0.68, aiCd: 1.2, aiDmg: 0.95, aiSpd: 0.82, assist: 0 },
   hard: { maxFwd: 6.0, boost: 4.8, turnRate: 2.3, aiSkill: 0.82, aiCd: 0.95, aiDmg: 1.1, aiSpd: 0.95, assist: 0 },
+  // 死神模式(beast-boss-kit §3):黑獅+紅眼+獠牙閃現+黑手抓心壞結局——恐怖元素只在這一檔(分級鐵則)
+  death: { maxFwd: 6.0, boost: 4.8, turnRate: 2.3, aiSkill: 0.9, aiCd: 0.85, aiDmg: 1.2, aiSpd: 1.0, assist: 0, deathMode: true },
 };
 
 export const DIFFICULTY_LABELS = {
@@ -25,6 +27,7 @@ export const DIFFICULTY_LABELS = {
   easy: "入門",
   normal: "標準",
   hard: "全力獅王",
+  death: "死神(黑獅)⚠",
 };
 
 export const GAME_MODES = {
@@ -106,6 +109,20 @@ export const LION_COLORS = {
   pupil: 0x1a1208,
   paw: 0xb06e2c,
   tailTuft: 0x4a2a16,
+};
+
+// 死神模式黑獅配色(beast-boss-kit §3:一鍵黑化+紅眼;只在 death 難度使用)
+export const LION_COLORS_DEATH = {
+  body: 0x16110d,
+  bodyDark: 0x0c0906,
+  belly: 0x241d16,
+  mane: 0x060404,
+  snout: 0x0a0706,
+  nose: 0x050303,
+  eye: 0xff2a1a,
+  pupil: 0x7a0000,
+  paw: 0x0c0906,
+  tailTuft: 0x030202,
 };
 
 // ---------- 比武場常數 ----------
@@ -579,7 +596,7 @@ export class WarriorGame {
   }
 
   makeLionFighter() {
-    const lion = makeLion(LION_COLORS);
+    const lion = makeLion(DIFFICULTY_PRESETS[this.difficulty]?.deathMode ? LION_COLORS_DEATH : LION_COLORS);
     this.scene.add(lion.group);
     return {
       person: lion,
@@ -647,7 +664,11 @@ export class WarriorGame {
 
   // ---------- 局面控制 ----------
   applyPresentation({ difficulty, modeId }) {
-    if (difficulty && DIFFICULTY_PRESETS[difficulty]) this.difficulty = difficulty;
+    if (difficulty && DIFFICULTY_PRESETS[difficulty]) {
+      const wasDeath = !!DIFFICULTY_PRESETS[this.difficulty]?.deathMode;
+      this.difficulty = difficulty;
+      if (wasDeath !== !!DIFFICULTY_PRESETS[difficulty].deathMode) this._buildFighters(); // 黑獅⇄金獅即時重建
+    }
     if (modeId && GAME_MODES[modeId]) {
       this.modeId = modeId;
       this.mode = getModeConfig(modeId);
