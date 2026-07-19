@@ -1,9 +1,10 @@
-const SETTINGS_KEY = "samson3d-settings-v1";
-const SAVE_KEY = "samson3d-save-v1";
+const SETTINGS_KEY = "davidbeasts3d-settings-v1";
+const SAVE_KEY = "davidbeasts3d-save-v1";
 
 const defaultSettings = {
   difficulty: "normal",
   modeId: "duel",
+  beastId: "lion1",
   audioEnabled: true,
 };
 

@@ -43,6 +43,7 @@ const ui = {
   modeCardGrid: document.querySelector("#modeCardGrid"),
   modeDescription: document.querySelector("#modeDescription"),
   menuDifficultySelect: document.querySelector("#menuDifficultySelect"),
+  beastSelect: document.querySelector("#beastSelect"),
   bigPowerLabel: document.querySelector("#bigPowerLabel"),
   audioSelect: document.querySelector("#audioSelect"),
   modeMetaTitle: document.querySelector("#modeMetaTitle"),
@@ -60,17 +61,19 @@ const game = new WarriorGame({
   canvas: ui.canvas,
   touchRoot: ui.touchControls,
 });
-window.__samson3d = game; window.__warrior3d = game; // dev hook(新名+引擎舊名雙掛)
+window.__davidbeasts3d = game; window.__warrior3d = game; // dev hook(新名+引擎舊名雙掛)
 window.__game = game; // /smoke3d 通用鉤子
 
 let selectedModeId = game.modeId;
 let selectedDifficulty = game.difficulty;
+let selectedBeastId = game.beastId;
 let audioEnabled = settings.audioEnabled !== false;
 
 function persistSettings() {
   saveSettings({
     difficulty: selectedDifficulty,
     modeId: selectedModeId,
+    beastId: selectedBeastId,
     audioEnabled,
   });
 }
@@ -101,12 +104,14 @@ function syncMenuCards() {
 
 function syncMenuControls() {
   ui.menuDifficultySelect.value = selectedDifficulty;
+  if (ui.beastSelect) ui.beastSelect.value = selectedBeastId;
   syncMenuCards();
 }
 
 function syncGameConfigurationToMenu() {
   selectedModeId = game.modeId;
   selectedDifficulty = game.difficulty;
+  selectedBeastId = game.beastId;
   syncMenuControls();
 }
 
@@ -150,13 +155,13 @@ function handleGameEvent(event) {
     case "match-start": {
       audio.whistle();
       audio.vibrate(18);
-      pushCommentary("歡迎來到亭拿的葡萄園!", "info", PHRASES[0]);
+      pushCommentary(`伯利恆的曠野——${event.loadout || "野獸"}闖進了羊群!`, "info", PHRASES[0]);
       break;
     }
     case "battle-start": {
       audio.horn();
       audio.vibrate(16);
-      pushCommentary("開戰!倚靠耶和華的靈,迎向獅子!", "hot", SCRIPTURES[1]);
+      pushCommentary("開戰!倚靠耶和華,把羊羔從野獸口中救回來!", "hot", SCRIPTURES[1]);
       break;
     }
     case "miss": {
@@ -173,14 +178,14 @@ function handleGameEvent(event) {
       if (event.who === "me") {
         pushCommentary("聖靈的能力臨到——金光大作!", "hot", PHRASES[3]);
       } else {
-        pushCommentary("獅子撲勢驚人——快閃開!", "cool");
+        pushCommentary("野獸撲勢驚人——快閃開!", "cool");
       }
       break;
     }
-    case "lion-telegraph": {
+    case "beast-telegraph": {
       audio.rebound();
       audio.vibrate([20, 40]);
-      pushCommentary("獅子要撲了——快閃開!", "cool", PHRASES[5]);
+      pushCommentary(`${event.label}要撲了——快閃開!`, "cool", event.beast === "bear" ? PHRASES[6] : PHRASES[5]);
       break;
     }
     case "block": {
@@ -197,7 +202,7 @@ function handleGameEvent(event) {
       audio.rebound();
       audio.vibrate([30, 20, 50]);
       if (event.who === "me") {
-        pushCommentary("完美格擋!獅子被震退!", "hot");
+        pushCommentary("完美格擋!野獸被震退!", "hot");
       }
       break;
     }
@@ -214,7 +219,7 @@ function handleGameEvent(event) {
         audio.vibrate([30, 20, 45]);
         const spoken = event.weapon === "輕拳" ? PHRASES[1] : event.weapon === "重拳" ? PHRASES[2] : PHRASES[3];
         pushCommentary(
-          `${event.weapon}命中!獅子 -${event.dmg}(第 ${event.round} 回合)`,
+          `${event.weapon}命中!-${event.dmg}(第 ${event.round} 回合)`,
           "hot",
           spoken,
         );
@@ -222,7 +227,7 @@ function handleGameEvent(event) {
         audio.thud(0.8);
         audio.vibrate(24);
         if (game.difficulty === "death") fangFlash(); // 死神模式限定:獠牙閃現(單次 0.3s)
-        const spoken = event.weapon === "獅爪" ? PHRASES[6] : PHRASES[7];
+        const spoken = event.beast === "bear" ? PHRASES[8] : PHRASES[7];
         pushCommentary(
           `被${event.weapon}擊中 -${event.dmg}——拉開距離再反擊!`,
           "cool",
@@ -231,24 +236,38 @@ function handleGameEvent(event) {
       }
       break;
     }
+    case "beast-down": {
+      audio.horn();
+      audio.crowdCheer(0.9);
+      audio.vibrate([80, 40, 90]);
+      const spoken = event.beast === "bear" ? PHRASES[11] : PHRASES[10];
+      pushCommentary(
+        event.remaining > 0
+          ? `${event.label}被制伏了!還有 ${event.remaining} 隻野獸——不要鬆懈!`
+          : `${event.label}被制伏了!`,
+        "hot",
+        event.remaining > 0 ? PHRASES[14] : spoken,
+      );
+      break;
+    }
     case "ko": {
       audio.horn();
       audio.crowdCheer(event.winner === "me" ? 1 : 0.6);
       audio.vibrate([110, 50, 120]);
-      if (event.winner === "me") pushCommentary("獅子被制伏了!", "hot", PHRASES[9]);
+      if (event.winner === "me") pushCommentary("全部制伏了!羊羔平安!", "hot", PHRASES[12]);
       break;
     }
     case "match-end": {
       if (!event.win && game.difficulty === "death") playDarkHand(); // 死神模式限定:黑手抓心壞結局(嚇一下就收)
-      const winText = "耶和華的靈大大感動參孫!手無器械,卻勝過吼叫的獅子!🦁";
-      const loseText = "再試一次——能力不在乎自己,在乎耶和華的靈。";
+      const winText = "耶和華救大衛脫離獅子和熊的爪!羊羔救回來了!🦁🐻";
+      const loseText = "再試一次——能力不在乎自己,在乎耶和華。";
       pushCommentary(
         event.win ? winText : loseText,
         event.win ? "hot" : "info",
         SCRIPTURES[0],
       );
       ui.saveStatus.textContent = hasSavedGame() ? "已記錄" : "尚無";
-      window.psPing?.("samson3d-done", window.__psT0 ? Math.round((Date.now() - window.__psT0) / 1000) : 0);
+      window.psPing?.("davidbeasts3d-done", window.__psT0 ? Math.round((Date.now() - window.__psT0) / 1000) : 0);
       break;
     }
     default:
@@ -259,8 +278,11 @@ function handleGameEvent(event) {
 game.onEvent = handleGameEvent;
 
 game.onHudUpdate = (state) => {
-  ui.myScoreLabel.textContent = String(state.myHp);
-  ui.aiScoreLabel.textContent = String(state.aiHp);
+  ui.myScoreLabel.textContent = String(Math.round(state.myHp));
+  // 多獸:逐獸顯示「獅72 熊88」(倒下的顯示 ✓);單獸維持大數字
+  ui.aiScoreLabel.textContent = state.foes && state.foes.length > 1
+    ? state.foes.map((f) => `${f.short}${f.down ? "✓" : Math.round(f.hp)}`).join(" ")
+    : String(Math.round(state.aiHp));
   ui.modeCode.textContent = state.modeLabel;
   ui.passLabel.textContent = state.roundCap ? `${state.roundNo}/${state.roundCap}` : String(state.roundNo);
   ui.gapLabel.textContent = state.gapText;
@@ -310,6 +332,13 @@ ui.menuDifficultySelect.addEventListener("change", (event) => {
   persistSettings();
 });
 
+ui.beastSelect.addEventListener("change", (event) => {
+  unlockAudio();
+  audio.uiTap();
+  selectedBeastId = event.target.value;
+  persistSettings();
+});
+
 ui.audioSelect.addEventListener("change", (event) => {
   unlockAudio();
   audio.uiTap();
@@ -319,11 +348,12 @@ ui.audioSelect.addEventListener("change", (event) => {
 ui.startMatchButton.addEventListener("click", () => {
   unlockAudio();
   audio.uiTap();
-  window.psPing?.("samson3d-start");
+  window.psPing?.("davidbeasts3d-start");
   window.__psT0 = Date.now();
   game.applyPresentation({
     difficulty: selectedDifficulty,
     modeId: selectedModeId,
+    beastId: selectedBeastId,
   });
   game.startSelectedMatch();
   closeHomeScreen();

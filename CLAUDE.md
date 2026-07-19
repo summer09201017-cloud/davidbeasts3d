@@ -1,66 +1,69 @@
-# CLAUDE.md — samson3d(3D 參孫打獅子・真3D競技場,士師記十四章)
+# CLAUDE.md — davidbeasts3d(3D 大衛打獅熊・護羊之戰,撒母耳記上十七章)
 
-> 2026-07-19 換皮自 warrior3d(德義武鬥館,徒步自由走位引擎)。原引擎可讀但絕不修改
-> `C:\Users\HFP\Desktop\warrior3d`。帳號 summer09201017-cloud。
-> ★尚未上架:公開 repo/Netlify prod 站名等使用者逐字點名(上架鐵則)。
+> 2026-07-19 換皮自 samson3d(參孫打獅子,agape250 機),引擎家族=warrior3d 真3D 自由走位。
+> 帳號 summer09201017-cloud。★尚未上架:公開 repo/Netlify prod 站名等使用者逐字點名(上架鐵則)。
 
-## 經文(士師記十四章五至六節,cuv 已查驗)
+## 經文(撒母耳記上十七章三十四至三十七節,cuv 已查驗)
 
-> 參孫跟他父母下亭拿去,到了亭拿的葡萄園,見有一隻少壯獅子向他吼叫。耶和華的靈大大
-> 感動參孫,他雖然手無器械,卻將獅子撕裂,如同撕裂山羊羔一樣。他行這事並沒有告訴父母。
+> 大衛對掃羅說:你僕人為父親放羊,有時來了獅子,有時來了熊,從群中啣一隻羊羔去。我就追趕他,
+> 擊打他,將羊羔從他口中救出來。他起來要害我,我就揪著他的鬍子,將他打死。……
+> 大衛又說:耶和華救我脫離獅子和熊的爪,也必救我脫離這非利士人的手。
 
-## 引擎要點(沿用 arena-duel-kit,依 beast-boss-kit 換皮)
+## 本作獨有:多獸同場(beast-boss-kit §6 的活範例)
 
-- 徒步自由走位:fighter={pos,heading,speed};WASD 走位、Shift 衝刺;場地 ARENA_HALF=15,
-  開放無阻擋,邊界柔性擋。血量制:殺獅之戰各 100 血/與獅纏鬥各 300 血(roundCap=300)/
-  練習場獅子不出手。KO=溫柔演出(參孫單膝跪地;獅子側躺被制伏),無流血。
-- 武器系統只留 `fists`(WEAPON_ORDER=["fists"]),不畫武器 mesh。
-  - **輕拳(J)**:`LIGHT_PUNCH`——快、傷害低、獨立冷卻(不佔重拳 cd)。
-  - **重拳(K/Space/點畫面)**:`WEAPONS.fists`——慢、傷害高、命中擊退;可長按蓄力
-    (CHARGE_MIN 0.6s~CHARGE_FULL 1.5s)放開=**聖靈金光**(`superAttack`→`_fireHolyWave`,
-    金色光波,dmg 1.4-2.5x,士14:6,不血腥)。
-  - 格擋(C 鍵,參孫限定,獅子從不格擋):正面 ±60° 近戰傷害 ×0.3;剛舉起 ≤0.35s 被打=
-    完美格擋(無傷+獅子震退硬直)。
-- 判定=畫面(鐵則4):近戰=距離+朝向幾何判定,傷害延到 CONTACT_AT/固定 t 值「接觸瞬間」
-  結算(`_pendingStrikes` 佇列)。
-- 自動面向:獅子進 8m 內,參孫沒在手動轉向/前進時自動轉身面對(W 前進完全讓位)。
+- **foes[] 陣列**取代單一 foe:`BEAST_LOADOUTS` 七陣容=獅×1/2/3、熊×1/2/3、獅+熊雙獸夾攻
+  (`beastId` 進 settings/save;首頁 `#beastSelect` 下拉)。
+- **BEAST_TYPES 資料驅動**:每獸自帶 claw/pounce 量值+速度/血量倍率+播報詞
+  (熊=出手慢傷害高血厚 1.3x 走得慢;獅=快靈)。
+- **群獸公平鐵則**:`PACK_DMG_SCALE` 1→1.0/2→0.75/3→0.6(獸越多單獸越輕,總壓力仍升);
+  蜂蜜多獸時 0.7x 間隔更常出現;**同一時刻只允許一隻獸亮紅色預告**(孩子看得懂該閃誰);
+  開場站位弧形排開+`pounceT` 依 index 錯開(不同步撲)。
+- **玩家攻擊目標=最近活獸**(`nearestFoe()`);自動面向也鎖最近活獸;
+  **聖靈金光穿透**:光波帶 `hitSet`,可一發連中多獸不消失。
+- **KO 分流**:單獸倒下=`beast-down` 事件(播報「還有 N 隻」)戰鬥繼續;全獸倒下才終局。
+- HUD 多獸=逐獸顯示「獅72 熊88」(倒下=✓),單獸維持大數字。
 
-## 獅子(beast-boss-kit §4,真 3D 四足)
+## 引擎要點(沿用 arena-duel-kit;細節同 samson3d)
 
-- `makeLion()`:Box 軀幹水平放,四腿在軀幹下方四角(fl/fr/bl/br),頭在前端(+z)+鬃毛環
-  (Torus+Sphere)+尾巴;配色集中 `LION_COLORS`(日後黑化用)。開場 `foe.heading=Math.PI`
-  使頭部(局部 +z)朝向玩家(局部 -z 世界方向)。
-- 攻擊:**輕=爪擊**(`lionClaw`,快、無預告)、**重=撲咬**(`_startLionPounce`→
-  `_resolveLionPounce`,帶紅色扇形預告 0.5-0.8s,telegraph 是 `foe.person.telegraph`,
-  只設 `rotation.x=-Math.PI/2` 作為 fighter.group 子物件——避免 Euler 疊加雷區,參考
-  chargeRing 的既有模式)。預告範圍=實際命中範圍(`LION_POUNCE.reach+BODY_REACH`),
-  預告結束那一幀(`_resolveLionPounce`)才結算。
-- AI 三腦(`updateLionAi`):走位(追擊/繞圈退開)+爪擊/撲咬決策(`brain.pounceT` 冷卻)+
-  喘息腦(aiSkill<0.6 每 4-8s 停 1.4s)。獅子不格擋、不換武器、不蓄力大招。
+- 徒步自由走位 WASD+Shift 衝刺;ARENA_HALF=15 開放無阻擋。輕拳 J/重拳 K 可蓄力
+  (0.6s~1.5s)放開=聖靈金光(撒上16:13);格擋 C(±60°,≤0.35s 完美盾反)。
+- 判定=畫面:近戰距離+朝向幾何判定,傷害延到接觸瞬間(`_pendingStrikes`);
+  野獸重攻擊(撲擊)先亮紅色扇形預告 0.5~0.95s,預告範圍=實際命中範圍(每獸各自的
+  telegraph 依其 pounce.reach 生成)。
+- KO=溫柔演出:大衛單膝跪地;野獸側躺被制伏,無流血。
 
-## 蜂蜜補血(§1,可整段刪除)
+## 野獸模型(beast-boss-kit §4,真 3D 四足)
 
-`spawnHoney`/`updateHoney`:12-20s 隨機出現,金黃六角柱+浮動旋轉+PointLight;距離
-<1.2 吃到回血 25%、字幕「野地的蜂蜜!」;同時最多 1 個,10 秒沒吃淡出。
+- `makeLion()`:同 samson3d(Box 軀幹+四腿四角+鬃毛環+尾+毛簇)。
+- `makeBear()`:無鬃、軀幹加寬加厚、**肩隆駝峰**、圓耳(壓扁球)、短尾(球stub)、
+  腿加粗 1.3x、整體 scale 1.12;棕色系 `BEAR_COLORS`。
+- 死神模式:`LION_COLORS_DEATH`/`BEAR_COLORS_DEATH` 一鍵黑化+紅眼(只在 death 難度;
+  重建於 `applyPresentation` 偵測 deathMode 或 beastId 改變時)。
+- 開場獸臉必朝玩家(resetFighters 逐獸 `heading=atan2(玩家-獸)`)。
 
 ## 場景
 
-亭拿葡萄園白日:`buildVineyard()`——葡萄藤架成排(棚架+藤葉+葡萄串)+遠山背景;
-`dayHours()` 起點改正午(暖光為主);已移除觀眾席/彩旗/燈籠柱/圍場欄(獨自一人,
-士14:5)。天氣系統(日夜/極光/飄雪)保留但預設晴日。
+伯利恆曠野牧場:`buildPasture()`——場外羊群(白絨球身+黑臉+四短腿)+被救回的小羊羔
+(羊圈邊,0.62 縮放)+石砌羊圈低牆弧+橄欖樹+猶大曠野遠山;日夜循環一天 50 秒
+(⚠ 天空會變粉紅=黃昏,特色不是 bug)。
 
-## 已移除(換皮清單)
+## 語音(baked-voice-commentary 範式)
 
-CHARACTERS(傑洛/喬尼/迪亞哥替身角色包)、CHARACTER_SKILLS、THE WORLD 時停、爪彈、
-黃金迴旋、OUTFIT_COLORS 戰袍選色、八般武器與武器條 UI、跳殺/飛殺突進技(E/R)——
-全部移除(不是鎖住),簡化操作為 WASD/J/K/C/V。
+PHRASES 15 句(雲哲)+SCRIPTURES 2 句(曉臻,撒上17:34/17:37 逐字)=17 mp3 已烤。
+獅/熊各有預告與被打句(main.js 依 `event.beast` 選);`beast-down` 剩獸>0 唸「還有野獸」。
 
 ## 驗證
 
-`npm run build && npx vite preview --port 4189`;Playwright 驅動一場對戰(輕拳/重拳/
-聖靈金光/KO/勝敗文案)確認 0 pageerror。`node scripts/gen-voice.mjs` 烤 14 句(PHRASES
-12 句+SCRIPTURES 2 句),累加式重跑到 failed 0。
+`npm run build && npx vite preview --port 4189`;
+`node scripts/verify-davidbeasts.mjs http://localhost:4189 scratch`——六關全綠+0 pageerror:
+①lion1 kids bot 勝 ②bear3 三熊 KO 鏈 ③both hard 站樁玩家該輸 ④金光穿透雙獸都掉血
+⑤death 黑化 16110d/14100c+normal 回 c9863a ⑥practice 8 秒不掉血。
+
+## dev hook
+
+`window.__davidbeasts3d`(+`__warrior3d` 引擎舊名雙掛)+`window.__game`(/smoke3d 通用)。
 
 ## 部署與同步(上架後,主線負責)
 
-尚未上架——本輪只做換皮與驗證,不部署、不 push、不動其他 repo。
+尚未上架——公開 repo 名/Netlify 站名待使用者逐字點名;上架收尾三件套=大廳入口卡
+(戰爭合輯)→作品集 add-work 登記→sites.json,另 Worker NAMES 加 davidbeasts3d 中文名。

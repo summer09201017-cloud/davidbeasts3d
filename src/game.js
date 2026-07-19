@@ -2,13 +2,15 @@ import * as THREE from "three";
 import { InputManager } from "./input.js";
 import { loadSettings, saveSettings, loadSavedGame, saveGameState } from "./storage.js";
 
-// —— 3D 參孫打獅子(samson3d,真 3D 競技場)——2026-07-19 換皮自 warrior3d(德義武鬥館)。
-// 士師記十四章五至六節:參孫獨自一人到亭拿的葡萄園,遇少壯獅子吼叫,耶和華的靈大大感動
-// 參孫,他手無器械,卻將獅子撕裂,如同撕裂山羊羔一樣——這事沒有告訴父母。
-// ★神學鐵則:得勝在乎耶和華的靈,不是參孫的臂力;勝負文案必回到神。
-// ★兒童安全鐵則:不流血;獅子被制伏=側躺不流血;參孫落敗=溫柔跪地,溫柔重試。
-// ★判定=畫面(鐵則4):出手當下用「距離+朝向」幾何判定,命中瞬間演出;獅子撲咬攻擊前必先
+// —— 3D 大衛打獅熊(davidbeasts3d,真 3D 牧場)——2026-07-19 換皮自 samson3d(參孫打獅子)。
+// 撒母耳記上十七章三十四至三十七節:大衛為父親放羊,有時來了獅子,有時來了熊,從群中啣一隻
+// 羊羔去;大衛追趕擊打,將羊羔從野獸口中救出來——「耶和華救我脫離獅子和熊的爪」。
+// ★神學鐵則:得勝在乎耶和華,不是大衛的臂力;勝負文案必回到神(撒上17:37)。
+// ★兒童安全鐵則:不流血;野獸被制伏=側躺不流血;大衛落敗=溫柔跪地,溫柔重試。
+// ★判定=畫面(鐵則4):出手當下用「距離+朝向」幾何判定,命中瞬間演出;野獸撲擊攻擊前必先
 //   亮紅色預告扇形,預告範圍=實際命中範圍,預告結束那一幀才結算。
+// ★多獸同場(beast-boss-kit §6):foes[] 陣列——玩家攻擊鎖定最近活獸、聖靈金光可穿透多獸、
+//   群獸傷害縮放(獸越多單獸越輕),七種陣容(獅/熊 ×1~3+獅熊夾攻)。
 
 // ---------- 可調量值 ----------
 export const DIFFICULTY_PRESETS = {
@@ -17,7 +19,7 @@ export const DIFFICULTY_PRESETS = {
   easy: { maxFwd: 4.8, boost: 3.8, turnRate: 2.4, aiSkill: 0.55, aiCd: 1.55, aiDmg: 0.8, aiSpd: 0.68, assist: 0.15 },
   normal: { maxFwd: 5.4, boost: 4.4, turnRate: 2.35, aiSkill: 0.68, aiCd: 1.2, aiDmg: 0.95, aiSpd: 0.82, assist: 0 },
   hard: { maxFwd: 6.0, boost: 4.8, turnRate: 2.3, aiSkill: 0.82, aiCd: 0.95, aiDmg: 1.1, aiSpd: 0.95, assist: 0 },
-  // 死神模式(beast-boss-kit §3):黑獅+紅眼+獠牙閃現+黑手抓心壞結局——恐怖元素只在這一檔(分級鐵則)
+  // 死神模式(beast-boss-kit §3):黑獸+紅眼+獠牙閃現+黑手抓心壞結局——恐怖元素只在這一檔(分級鐵則)
   death: { maxFwd: 6.0, boost: 4.8, turnRate: 2.3, aiSkill: 0.9, aiCd: 0.85, aiDmg: 1.2, aiSpd: 1.0, assist: 0, deathMode: true },
 };
 
@@ -26,29 +28,29 @@ export const DIFFICULTY_LABELS = {
   child: "兒童(簡單)",
   easy: "入門",
   normal: "標準",
-  hard: "全力獅王",
-  death: "死神(黑獅)⚠",
+  hard: "全力獸王",
+  death: "死神(黑獸)⚠",
 };
 
 export const GAME_MODES = {
   duel: {
-    label: "鬥獅之戰",
+    label: "護羊之戰",
     hp: 100,
-    description: "赤手空拳,倚靠耶和華的靈,制伏這隻向你吼叫的少壯獅子!",
-    goal: "打光獅子血量(各 100)",
+    description: "野獸闖進羊群要叼走羊羔——像大衛一樣追上去,倚靠耶和華制伏牠!",
+    goal: "打光野獸血量(大衛 100)",
   },
   epic: {
-    label: "與獅纏鬥",
+    label: "與獸纏鬥",
     hp: 300,
     roundCap: 300,
-    description: "雙方血量提高到 300——考驗你能與獅子周旋多久。",
+    description: "雙方血量提高到 300——考驗你能與野獸周旋多久。",
     goal: "血量 300,戰到分出勝負",
   },
   practice: {
-    label: "練習場",
+    label: "牧場練習",
     hp: 100,
     passive: true,
-    description: "獅子只走位不攻擊——自由練習輕拳、重拳與聖靈金光的手感。",
+    description: "野獸只走位不攻擊——自由練習輕拳、重拳與聖靈金光的手感。",
     goal: "純練手感,不計勝負",
   },
 };
@@ -57,11 +59,40 @@ export function getModeConfig(modeId) {
   return GAME_MODES[modeId] || GAME_MODES.duel;
 }
 
+// ---------- 野獸種類(獅/熊)與陣容(BOSS 種類×數量,beast-boss-kit §6) ----------
+export const BEAST_TYPES = {
+  lion: {
+    label: "獅子", short: "獅",
+    claw: { reach: 1.3, dmg: 6, cd: 1.3, arc: 1.0, knockback: 0.22, label: "獅爪", shortLabel: "爪擊" },
+    pounce: { reach: 2.1, dmg: 15, cd: 3.6, arc: 0.85, knockback: 1.0, telegraphMin: 0.5, telegraphMax: 0.8, commitDur: 0.22, label: "獅子撲咬", shortLabel: "撲咬" },
+    speedMul: 1.0, hpMul: 1.0,
+  },
+  bear: {
+    label: "熊", short: "熊",
+    claw: { reach: 1.45, dmg: 8, cd: 1.7, arc: 1.0, knockback: 0.32, label: "熊掌", shortLabel: "熊掌" },
+    pounce: { reach: 1.9, dmg: 19, cd: 4.6, arc: 0.85, knockback: 1.3, telegraphMin: 0.62, telegraphMax: 0.95, commitDur: 0.26, label: "熊撲擊", shortLabel: "熊撲" },
+    speedMul: 0.85, hpMul: 1.3,
+  },
+};
+
+export const BEAST_LOADOUTS = {
+  lion1: { label: "獅子 ×1", beasts: ["lion"] },
+  lion2: { label: "獅子 ×2", beasts: ["lion", "lion"] },
+  lion3: { label: "獅子 ×3", beasts: ["lion", "lion", "lion"] },
+  bear1: { label: "熊 ×1", beasts: ["bear"] },
+  bear2: { label: "熊 ×2", beasts: ["bear", "bear"] },
+  bear3: { label: "熊 ×3", beasts: ["bear", "bear", "bear"] },
+  both: { label: "獅+熊 雙獸夾攻", beasts: ["lion", "bear"] },
+};
+
+// 群獸公平鐵則:獸越多,單獸出手傷害越低(總壓力仍上升),孩子不被圍毆秒殺
+const PACK_DMG_SCALE = { 1: 1, 2: 0.75, 3: 0.6 };
+
 // ---------- 武器系統只留 fists(赤手空拳,不畫武器 mesh) ----------
 // 重拳(K/Space,可蓄力)沿用 fists 這張表;輕拳(J)自成一組更快更輕的量值(見下 LIGHT_PUNCH)。
 export const WEAPON_ORDER = ["fists"];
 export const WEAPONS = {
-  fists: { label: "赤手空拳", short: "拳", reach: 1.5, dmg: 15, cd: 1.05, arc: 1.2, swing: "chop", chargeBonus: 0.6, hint: "手無器械,卻倚靠耶和華的靈" },
+  fists: { label: "赤手空拳", short: "拳", reach: 1.5, dmg: 15, cd: 1.05, arc: 1.2, swing: "chop", chargeBonus: 0.6, hint: "少年牧人,倚靠耶和華追打野獸" },
 };
 
 // 輕拳:快、傷害低、獨立冷卻(不佔重拳的 cd)
@@ -70,34 +101,27 @@ const LIGHT_PUNCH = { dmg: 6, cd: 0.42, reach: 1.4, arc: 1.3 };
 // 揮擊「接觸瞬間」(秒)——傷害/閃光/慢動作在這一刻才發生
 const CONTACT_AT = { chop: 0.22 };
 
-// 蓄力大招(聖靈金光):長按重拳鍵蓄力,放開發出金色光波(士14:6,不血腥)。
+// 蓄力大招(聖靈金光):長按重拳鍵蓄力,放開發出金色光波(撒上16:13 耶和華的靈大大感動大衛,不血腥)。
 const CHARGE_MIN = 0.6;
 const CHARGE_FULL = 1.5;
 const HOLY_LIGHT_COLOR = 0xffd84a;
 
-// 自動面向敵人:獅子靠近時,參孫沒在手動轉向/衝刺時自動轉身面對(讓位鐵則:W 前進完全不干預)。
+// 自動面向敵人:野獸靠近時,大衛沒在手動轉向/衝刺時自動轉身面對最近的活獸(讓位鐵則:W 前進完全不干預)。
 const AUTO_FACE_RANGE = 8;
 
-// 格擋(參孫限定,獅子不格擋):按住 C=舉起雙臂防禦——近戰傷害 ×0.3;剛舉起 ≤PARRY_WINDOW
-// 秒內被打到=完美盾反(無傷+獅子被彈開硬直)。
+// 格擋(大衛限定,野獸不格擋):按住 C=舉起雙臂防禦——近戰傷害 ×0.3;剛舉起 ≤PARRY_WINDOW
+// 秒內被打到=完美盾反(無傷+野獸被彈開硬直)。
 const BLOCK_ARC = 1.05;
 const PARRY_WINDOW = 0.35;
 
-// ---------- 獅子攻擊量值(beast-boss-kit §4):輕=爪擊、重=撲咬(帶紅色預告) ----------
-const LION_CLAW = { reach: 1.3, dmg: 6, cd: 1.3, arc: 1.0, knockback: 0.22 };
-const LION_POUNCE = {
-  reach: 2.1, dmg: 15, cd: 3.6, arc: 0.85, knockback: 1.0,
-  telegraphMin: 0.5, telegraphMax: 0.8, commitDur: 0.22,
-};
-
-// ---------- 蜂蜜補血(§1,獨立一段,整段可刪不傷核心) ----------
+// ---------- 蜂蜜補血(§1,獨立一段,整段可刪不傷核心;多獸時出現更頻繁) ----------
 const HONEY_MIN_T = 12;
 const HONEY_MAX_T = 20;
 const HONEY_LIFE = 10;
 const HONEY_HEAL_PCT = 0.25;
 const HONEY_EAT_DIST = 1.2;
 
-// ---------- 獅子配色集中表(日後黑化/死神模式用) ----------
+// ---------- 野獸配色集中表(日後黑化/死神模式用) ----------
 export const LION_COLORS = {
   body: 0xc9863a,
   bodyDark: 0xb06e2c,
@@ -123,6 +147,29 @@ export const LION_COLORS_DEATH = {
   pupil: 0x7a0000,
   paw: 0x0c0906,
   tailTuft: 0x030202,
+};
+
+export const BEAR_COLORS = {
+  body: 0x6d4b2c,
+  bodyDark: 0x54381f,
+  belly: 0x8a6a45,
+  snout: 0x4a331d,
+  nose: 0x1c130c,
+  eye: 0xffffff,
+  pupil: 0x140e08,
+  paw: 0x4a331d,
+};
+
+// 死神模式黑熊配色(同黑化語彙:全黑+紅眼)
+export const BEAR_COLORS_DEATH = {
+  body: 0x14100c,
+  bodyDark: 0x0b0805,
+  belly: 0x201a13,
+  snout: 0x0a0705,
+  nose: 0x050302,
+  eye: 0xff2a1a,
+  pupil: 0x7a0000,
+  paw: 0x0b0805,
 };
 
 // ---------- 比武場常數 ----------
@@ -174,12 +221,13 @@ function createLimb({ upperMaterial, lowerMaterial, endMaterial, upperLen, lower
   return { pivot, upper, joint, lower, end: endMesh };
 }
 
-// ---------- 參孫(赤膊+腰布+七綹長髮辮) ----------
-const SAMSON_SKIN = 0xd9a066;
-const SAMSON_CLOTH = 0xa9793f;
-const SAMSON_HAIR = 0x2b1810;
+// ---------- 大衛(少年牧人:羊毛短袍+腰帶+投石帶斜背,無鬍鬚、短捲髮) ----------
+const DAVID_SKIN = 0xd9a066;
+const DAVID_TUNIC = 0xd9c9a3;
+const DAVID_SKIRT = 0x8a6a3f;
+const DAVID_HAIR = 0x3a2415;
 
-function makePerson({ shirt = SAMSON_SKIN, pants = SAMSON_CLOTH, skin = SAMSON_SKIN, hair = SAMSON_HAIR, gender = "m", scale = 1 } = {}) {
+function makePerson({ shirt = DAVID_TUNIC, pants = DAVID_SKIRT, skin = DAVID_SKIN, hair = DAVID_HAIR, gender = "m", scale = 1 } = {}) {
   const group = new THREE.Group();
   const rig = new THREE.Group();
   group.add(rig);
@@ -209,6 +257,17 @@ function makePerson({ shirt = SAMSON_SKIN, pants = SAMSON_CLOTH, skin = SAMSON_S
   waist.add(beltLine);
   rig.add(waist);
 
+  // 投石帶(甩石的機弦,撒上17:40)斜背在胸前+腰間小石袋——純裝飾,戰鬥仍是赤手
+  const strapMat = new THREE.MeshStandardMaterial({ color: 0x5a3c22, roughness: 0.85 });
+  const strap = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.86, 0.05), strapMat);
+  strap.position.set(0, 1.42, 0.18);
+  strap.rotation.z = 0.72;
+  rig.add(strap);
+  const pouch = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), strapMat);
+  pouch.scale.set(1, 1.2, 0.7);
+  pouch.position.set(-0.24, 1.06, 0.16);
+  rig.add(pouch);
+
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 18, 18), skinMat);
   head.position.y = 2.12;
   rig.add(head);
@@ -220,6 +279,7 @@ function makePerson({ shirt = SAMSON_SKIN, pants = SAMSON_CLOTH, skin = SAMSON_S
   earR.position.x = 0.245;
   rig.add(earR);
 
+  // 短捲髮(少年大衛,無七綹髮辮——那是參孫的)
   const hairMat = new THREE.MeshStandardMaterial({ color: hair, roughness: 0.85 });
   const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.265, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.46), hairMat);
   hairCap.position.y = 2.13;
@@ -231,16 +291,10 @@ function makePerson({ shirt = SAMSON_SKIN, pants = SAMSON_CLOTH, skin = SAMSON_S
   );
   hairBack.position.y = 2.12;
   rig.add(hairBack);
-
-  // 七綹長髮辮(頭後,士師記十六章的招牌細節——本作亦落地)
-  for (let i = 0; i < 7; i += 1) {
-    const t = (i - 3) / 3; // -1..1
-    const len = 0.4 - Math.abs(t) * 0.08;
-    const braid = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, len, 4, 6), hairMat);
-    braid.position.set(t * 0.1, 1.9 - Math.abs(t) * 0.06, -0.23);
-    braid.rotation.x = 0.4 + Math.abs(t) * 0.15;
-    braid.rotation.z = t * 0.12;
-    rig.add(braid);
+  for (const [cx, cy] of [[-0.16, 2.3], [0, 2.34], [0.16, 2.3], [-0.22, 2.2], [0.22, 2.2]]) {
+    const curl = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 8), hairMat);
+    curl.position.set(cx, cy, 0.02);
+    rig.add(curl);
   }
 
   const faceDark = new THREE.MeshBasicMaterial({ color: 0x25201a });
@@ -303,27 +357,39 @@ function makePerson({ shirt = SAMSON_SKIN, pants = SAMSON_CLOTH, skin = SAMSON_S
   return { group, rig, head, waist, leftArm, rightArm, leftLeg, rightLeg, shirtMat, pantsMat, smile };
 }
 
-function makeSamsonFigure() {
-  return makePerson({ shirt: SAMSON_SKIN, pants: SAMSON_CLOTH, skin: SAMSON_SKIN, hair: SAMSON_HAIR, gender: "m", scale: 1 });
+function makeDavidFigure() {
+  return makePerson({ shirt: DAVID_TUNIC, pants: DAVID_SKIRT, skin: DAVID_SKIN, hair: DAVID_HAIR, gender: "m", scale: 1 });
 }
 
-// ---------- 少壯獅子(四足,beast-boss-kit §4):Box 軀幹水平,四腿在軀幹下方四角,頭前端+鬃毛環+尾巴 ----------
-function makeLionLeg(x, z, legMat, pawMat) {
+// ---------- 野獸(四足,beast-boss-kit §4):Box 軀幹水平,四腿在軀幹下方四角,頭前端+尾巴 ----------
+function makeBeastLeg(x, z, legMat, pawMat, thick = 1, pivotY = 0.62) {
   const pivot = new THREE.Group();
-  pivot.position.set(x, 0.62, z);
-  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.26, 4, 8), legMat);
+  pivot.position.set(x, pivotY, z);
+  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.09 * thick, 0.26, 4, 8), legMat);
   thigh.position.y = -0.15;
   pivot.add(thigh);
   const joint = new THREE.Group();
   joint.position.y = -0.3;
   pivot.add(joint);
-  const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.24, 4, 8), legMat);
+  const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.075 * thick, 0.24, 4, 8), legMat);
   shin.position.y = -0.13;
   joint.add(shin);
-  const paw = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.09, 0.22), pawMat);
+  const paw = new THREE.Mesh(new THREE.BoxGeometry(0.17 * thick, 0.09, 0.22 * thick), pawMat);
   paw.position.set(0, -0.26, 0.04);
   joint.add(paw);
   return { pivot, joint };
+}
+
+// 撲擊紅色預告扇形(telegraph;只設 rotation.x——避免 Euler 疊加雷區);範圍=該獸實際命中範圍
+function makeTelegraph(pounce) {
+  const telegraph = new THREE.Mesh(
+    new THREE.CircleGeometry(pounce.reach + BODY_REACH, 24, -Math.PI / 2 - pounce.arc, pounce.arc * 2),
+    new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  telegraph.rotation.x = -Math.PI / 2;
+  telegraph.position.y = -0.6; // 相對於 rig(rig.y 基準在腳掌之上),貼地
+  telegraph.visible = false;
+  return telegraph;
 }
 
 function makeLion(colors = LION_COLORS) {
@@ -375,7 +441,7 @@ function makeLion(colors = LION_COLORS) {
     ear.rotation.x = -0.3;
     rig.add(ear);
   }
-  // 鬃毛環
+  // 鬃毛環(獅子限定)
   const mane = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.16, 10, 16), maneMat);
   mane.position.set(0, 0.78, 0.5);
   rig.add(mane);
@@ -385,10 +451,10 @@ function makeLion(colors = LION_COLORS) {
 
   // 四腿(軀幹下方四角)
   const legs = {
-    fl: makeLionLeg(-0.2, 0.42, bodyMat, pawMat),
-    fr: makeLionLeg(0.2, 0.42, bodyMat, pawMat),
-    bl: makeLionLeg(-0.2, -0.42, bodyMat, pawMat),
-    br: makeLionLeg(0.2, -0.42, bodyMat, pawMat),
+    fl: makeBeastLeg(-0.2, 0.42, bodyMat, pawMat),
+    fr: makeBeastLeg(0.2, 0.42, bodyMat, pawMat),
+    bl: makeBeastLeg(-0.2, -0.42, bodyMat, pawMat),
+    br: makeBeastLeg(0.2, -0.42, bodyMat, pawMat),
   };
   for (const leg of Object.values(legs)) rig.add(leg.pivot);
 
@@ -404,17 +470,93 @@ function makeLion(colors = LION_COLORS) {
   tailPivot.add(tuft);
   rig.add(tailPivot);
 
-  // 撲咬紅色預告扇形(telegraph;子物件於 fighter group 上,只設 rotation.x——避免 Euler 疊加雷區)
-  const telegraph = new THREE.Mesh(
-    new THREE.CircleGeometry(LION_POUNCE.reach + BODY_REACH, 24, -Math.PI / 2 - LION_POUNCE.arc, LION_POUNCE.arc * 2),
-    new THREE.MeshBasicMaterial({ color: 0xff2222, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }),
-  );
-  telegraph.rotation.x = -Math.PI / 2;
-  telegraph.position.y = -0.6; // 相對於 rig(rig.y 基準在腳掌之上),貼地
-  telegraph.visible = false;
+  const telegraph = makeTelegraph(BEAST_TYPES.lion.pounce);
   rig.add(telegraph);
 
   return { group, rig, head, legs, tailPivot, telegraph, bodyMat, maneMat };
+}
+
+// 熊(撒上17:34「有時來了獅子,有時來了熊」):無鬃、體壯、肩隆、圓耳、短尾,整體放大 1.12
+function makeBear(colors = BEAR_COLORS) {
+  const group = new THREE.Group();
+  const rig = new THREE.Group();
+  group.add(rig);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: colors.body, roughness: 0.9 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: colors.bodyDark, roughness: 0.9 });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: colors.belly, roughness: 0.9 });
+  const snoutMat = new THREE.MeshStandardMaterial({ color: colors.snout, roughness: 0.85 });
+  const pawMat = new THREE.MeshStandardMaterial({ color: colors.paw, roughness: 0.85 });
+  const noseMat = new THREE.MeshBasicMaterial({ color: colors.nose });
+  const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: colors.eye });
+  const pupilMat = new THREE.MeshBasicMaterial({ color: colors.pupil });
+
+  // 軀幹(比獅子更寬更厚)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.6, 1.28), bodyMat);
+  body.position.set(0, 0.68, 0);
+  rig.add(body);
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.24, 1.1), bellyMat);
+  belly.position.set(0, 0.42, 0);
+  rig.add(belly);
+  // 肩隆(熊的招牌駝峰)
+  const hump = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), darkMat);
+  hump.scale.set(1, 0.72, 0.9);
+  hump.position.set(0, 1.0, 0.22);
+  rig.add(hump);
+
+  // 頭(前端,無鬃)
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.4, 0.42), bodyMat);
+  head.position.set(0, 0.94, 0.8);
+  rig.add(head);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.17, 0.3), snoutMat);
+  snout.position.set(0, 0.86, 1.06);
+  rig.add(snout);
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.03), noseMat);
+  nose.position.set(0, 0.9, 1.22);
+  rig.add(nose);
+
+  // 眼睛(臉部鐵則:白+瞳)
+  for (const sx of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeWhiteMat);
+    eye.position.set(sx * 0.14, 1.0, 0.99);
+    rig.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), pupilMat);
+    pupil.position.set(sx * 0.14, 1.0, 1.02);
+    rig.add(pupil);
+  }
+  // 圓耳(熊)
+  for (const sx of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(0.1, 10, 8), darkMat);
+    ear.scale.set(1, 1, 0.55);
+    ear.position.set(sx * 0.19, 1.2, 0.7);
+    rig.add(ear);
+  }
+
+  // 四腿(粗壯)
+  const legs = {
+    fl: makeBeastLeg(-0.24, 0.46, bodyMat, pawMat, 1.3, 0.68),
+    fr: makeBeastLeg(0.24, 0.46, bodyMat, pawMat, 1.3, 0.68),
+    bl: makeBeastLeg(-0.24, -0.46, bodyMat, pawMat, 1.3, 0.68),
+    br: makeBeastLeg(0.24, -0.46, bodyMat, pawMat, 1.3, 0.68),
+  };
+  for (const leg of Object.values(legs)) rig.add(leg.pivot);
+
+  // 短尾(熊)
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0, 0.74, -0.66);
+  const stub = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), darkMat);
+  stub.position.set(0, 0, -0.05);
+  tailPivot.add(stub);
+  rig.add(tailPivot);
+
+  const telegraph = makeTelegraph(BEAST_TYPES.bear.pounce);
+  rig.add(telegraph);
+
+  group.scale.setScalar(1.12);
+  return { group, rig, head, legs, tailPivot, telegraph, bodyMat, maneMat: darkMat };
+}
+
+function makeBeast(typeId, colors) {
+  return typeId === "bear" ? makeBear(colors) : makeLion(colors);
 }
 
 // ---------- 主遊戲類別 ----------
@@ -427,6 +569,7 @@ export class WarriorGame {
     this.difficulty = DIFFICULTY_PRESETS[settings.difficulty] ? settings.difficulty : "normal";
     this.modeId = GAME_MODES[settings.modeId] ? settings.modeId : "duel";
     this.mode = getModeConfig(this.modeId);
+    this.beastId = BEAST_LOADOUTS[settings.beastId] ? settings.beastId : "lion1";
     this.weaponId = "fists";
     this.characterId = "default";
 
@@ -439,7 +582,7 @@ export class WarriorGame {
     this.running = false;
     this.time = 0;
     this.phase = "menu"; // menu | gate | battle | ended
-    this.message = "在首頁選擇模式與難度後開始。";
+    this.message = "在首頁選擇模式、野獸陣容與難度後開始。";
     this.cameraView = 0;
     this.autoSaveTimer = 0;
 
@@ -485,7 +628,7 @@ export class WarriorGame {
     if (this.onEvent) this.onEvent({ type, ...payload });
   }
 
-  // ---------- 場景:亭拿葡萄園白日(葡萄藤架成排+遠山+暖天光),獨自一人、無觀眾席 ----------
+  // ---------- 場景:伯利恆曠野牧場(羊群+羊圈+樹+遠山+暖天光),少年牧人獨自看守 ----------
   setupScene() {
     const sun = new THREE.HemisphereLight(0xfff6de, 0x6a7a3a, 1.35);
     this.scene.add(sun);
@@ -497,16 +640,16 @@ export class WarriorGame {
     rim.position.set(-25, 30, 25);
     this.scene.add(rim);
 
-    const grass = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ color: 0x8a9a4a, roughness: 1 }));
+    const grass = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), new THREE.MeshStandardMaterial({ color: 0x99a052, roughness: 1 }));
     grass.rotation.x = -Math.PI / 2;
     grass.position.y = -0.02;
     this.scene.add(grass);
-    // 開放式草地(葡萄園中的空地——參孫遇獅之處,不設任何阻擋)
-    const soil = new THREE.Mesh(new THREE.PlaneGeometry(ARENA_HALF * 2 + 6, ARENA_HALF * 2 + 6), new THREE.MeshStandardMaterial({ color: 0xc9a66b, roughness: 1 }));
+    // 開放式草地(牧場中的空地——大衛追上野獸之處,不設任何阻擋)
+    const soil = new THREE.Mesh(new THREE.PlaneGeometry(ARENA_HALF * 2 + 6, ARENA_HALF * 2 + 6), new THREE.MeshStandardMaterial({ color: 0xc9b06b, roughness: 1 }));
     soil.rotation.x = -Math.PI / 2;
     this.scene.add(soil);
 
-    this.buildVineyard();
+    this.buildPasture();
     this._buildFighters();
 
     // 擊中閃光
@@ -523,38 +666,67 @@ export class WarriorGame {
     this.resetFighters();
   }
 
-  // 亭拿葡萄園:葡萄藤架成排(棚架+藤葉+葡萄串)+遠山背景
-  buildVineyard() {
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x6d4a26, roughness: 0.85 });
-    const wireMat = new THREE.MeshStandardMaterial({ color: 0x8a8a7a, roughness: 0.6, metalness: 0.3 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x5a8a34, roughness: 0.9 });
-    const grapeMat = new THREE.MeshStandardMaterial({ color: 0x5a3a78, roughness: 0.5, emissive: 0x2a1640, emissiveIntensity: 0.2 });
+  // 伯利恆曠野牧場:羊群在場外圍觀望+石砌羊圈+橄欖樹+遠山
+  buildPasture() {
     const F = ARENA_HALF + 2;
-    const rowZ = [-F - 4, -F - 8, F + 4, F + 8];
-    for (const z of rowZ) {
-      for (let x = -F - 2; x <= F + 2; x += 4) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.7, 8), postMat);
-        post.position.set(x, 0.85, z);
-        this.scene.add(post);
+    const woolMat = new THREE.MeshStandardMaterial({ color: 0xf1ece0, roughness: 0.95 });
+    const woolShade = new THREE.MeshStandardMaterial({ color: 0xdad2c2, roughness: 0.95 });
+    const sheepFaceMat = new THREE.MeshStandardMaterial({ color: 0x3a3128, roughness: 0.8 });
+    // 羊群(在場外圍,不進戰場;每隻朝向略異)
+    const mkSheep = (x, z, s = 1) => {
+      const sheep = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), Math.random() < 0.3 ? woolShade : woolMat);
+      body.scale.set(1.05, 0.85, 1.35);
+      body.position.y = 0.52;
+      sheep.add(body);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.26), sheepFaceMat);
+      head.position.set(0, 0.66, 0.56);
+      sheep.add(head);
+      for (const sx of [-1, 1]) {
+        const ear = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 6), sheepFaceMat);
+        ear.scale.set(1.4, 0.6, 0.8);
+        ear.position.set(sx * 0.12, 0.74, 0.52);
+        sheep.add(ear);
       }
-      const wire = new THREE.Mesh(new THREE.BoxGeometry((F + 2) * 2, 0.03, 0.03), wireMat);
-      wire.position.set(0, 1.55, z);
-      this.scene.add(wire);
-      for (let x = -F - 2; x <= F + 2; x += 2.2) {
-        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.5 + Math.random() * 0.18, 8, 6), leafMat);
-        leaf.position.set(x + (Math.random() - 0.5), 1.3 + Math.random() * 0.25, z + (Math.random() - 0.5) * 0.6);
-        leaf.scale.y = 0.6;
-        this.scene.add(leaf);
-        if (Math.random() < 0.6) {
-          const grape = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 6), grapeMat);
-          grape.position.set(leaf.position.x, leaf.position.y - 0.34, leaf.position.z);
-          this.scene.add(grape);
-        }
+      for (const [lx, lz] of [[-0.16, 0.24], [0.16, 0.24], [-0.16, -0.24], [0.16, -0.24]]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.3, 0.07), sheepFaceMat);
+        leg.position.set(lx, 0.15, lz);
+        sheep.add(leg);
+      }
+      sheep.position.set(x, 0, z);
+      sheep.rotation.y = Math.random() * Math.PI * 2;
+      sheep.scale.setScalar(s);
+      this.scene.add(sheep);
+    };
+    for (let i = 0; i < 7; i += 1) mkSheep(-F - 4 - Math.random() * 5, (Math.random() * 2 - 1) * F);
+    for (let i = 0; i < 5; i += 1) mkSheep((Math.random() * 2 - 1) * F, -F - 4 - Math.random() * 5);
+    mkSheep(F + 4.5, F * 0.4, 0.62); // 被救回的小羊羔(撒上17:35),在羊圈邊
+    // 石砌羊圈(場外一角,低牆弧)
+    const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9a917e, roughness: 1 });
+    for (let i = 0; i < 14; i += 1) {
+      const a = Math.PI * 0.55 + (i / 13) * Math.PI * 0.9;
+      const stone = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.7 + Math.random() * 0.2, 0.6), stoneMat);
+      stone.position.set(F + 7 + Math.cos(a) * 4.5, 0.35, F * 0.4 + Math.sin(a) * 4.5);
+      stone.rotation.y = -a;
+      this.scene.add(stone);
+    }
+    // 橄欖樹/篤耨香樹(場外幾棵)
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4a26, roughness: 0.9 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x5f7a34, roughness: 0.95 });
+    for (const [tx, tz, ts] of [[-F - 8, F + 5, 1.2], [F + 6, -F - 6, 1], [-4, F + 9, 1.35], [F + 12, 6, 0.9]]) {
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * ts, 0.26 * ts, 2.2 * ts, 8), trunkMat);
+      trunk.position.set(tx, 1.1 * ts, tz);
+      this.scene.add(trunk);
+      for (const [ox, oy, oz, r] of [[0, 2.4, 0, 1.1], [-0.7, 2.0, 0.3, 0.7], [0.65, 2.1, -0.25, 0.75]]) {
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(r * ts, 10, 8), leafMat);
+        canopy.scale.y = 0.7;
+        canopy.position.set(tx + ox * ts, oy * ts, tz + oz * ts);
+        this.scene.add(canopy);
       }
     }
-    // 遠山
-    const mtnMat = new THREE.MeshStandardMaterial({ color: 0x9a9068, roughness: 1 });
-    const mtnMat2 = new THREE.MeshStandardMaterial({ color: 0x7f8a5e, roughness: 1 });
+    // 遠山(猶大曠野)
+    const mtnMat = new THREE.MeshStandardMaterial({ color: 0xa39468, roughness: 1 });
+    const mtnMat2 = new THREE.MeshStandardMaterial({ color: 0x87885e, roughness: 1 });
     const mtnSpecs = [
       [-70, -95, 26, 40, mtnMat], [40, -115, 34, 52, mtnMat2], [95, -60, 22, 34, mtnMat],
       [-95, 70, 30, 44, mtnMat2], [60, 105, 24, 36, mtnMat], [0, -130, 40, 58, mtnMat2],
@@ -566,18 +738,16 @@ export class WarriorGame {
     }
   }
 
-  // 建(或重建)參孫與獅子
+  // 建(或重建)大衛與野獸群(陣容/死神黑化改變時重建)
   _buildFighters() {
-    const brain = this.foe ? this.foe.brain : { retreatT: 0, orbitDir: 1 };
     if (this.my) this.scene.remove(this.my.person.group);
-    if (this.foe) this.scene.remove(this.foe.person.group);
-    this.my = this.makeSamsonFighter();
-    this.foe = this.makeLionFighter();
-    this.foe.brain = brain;
+    if (this.foes) for (const f of this.foes) this.scene.remove(f.person.group);
+    this.my = this.makeDavidFighter();
+    this.foes = BEAST_LOADOUTS[this.beastId].beasts.map((typeId) => this.makeBeastFighter(typeId));
   }
 
-  makeSamsonFighter() {
-    const person = makeSamsonFigure();
+  makeDavidFighter() {
+    const person = makeDavidFigure();
     this.scene.add(person.group);
     const chargeRing = new THREE.Mesh(
       new THREE.RingGeometry(0.55, 0.82, 28),
@@ -589,31 +759,47 @@ export class WarriorGame {
     return {
       person, chargeRing,
       pos: new THREE.Vector3(), heading: 0, speed: 0,
-      hp: 100, cd: 0, lightCd: 0, chargeT: -1, strikeKind: null,
+      hp: 100, maxHp: 100, cd: 0, lightCd: 0, chargeT: -1, strikeKind: null,
       blocking: false, blockT: 9,
       strikeT: 9, hitT: 9, stunT: 9, koT: -1, walkT: 0,
     };
   }
 
-  makeLionFighter() {
-    const lion = makeLion(DIFFICULTY_PRESETS[this.difficulty]?.deathMode ? LION_COLORS_DEATH : LION_COLORS);
-    this.scene.add(lion.group);
+  makeBeastFighter(typeId) {
+    const stats = BEAST_TYPES[typeId];
+    const dm = DIFFICULTY_PRESETS[this.difficulty]?.deathMode;
+    const colors = typeId === "bear" ? (dm ? BEAR_COLORS_DEATH : BEAR_COLORS) : (dm ? LION_COLORS_DEATH : LION_COLORS);
+    const beast = makeBeast(typeId, colors);
+    this.scene.add(beast.group);
     return {
-      person: lion,
+      person: beast, type: typeId, stats,
       pos: new THREE.Vector3(), heading: 0, speed: 0,
-      hp: 100, cd: 0, lightCd: 0, pounce: null,
+      hp: 100, maxHp: 100, cd: 0, lightCd: 0, pounce: null,
       strikeT: 9, hitT: 9, stunT: 9, koT: -1, walkT: 0,
       chargeT: -1, blocking: false, blockT: 9,
+      brain: { retreatT: 0, orbitDir: 1 },
     };
+  }
+
+  livingFoes() {
+    return this.foes.filter((f) => f.koT < 0);
+  }
+
+  nearestFoe(from = this.my) {
+    let best = null;
+    let bd = Infinity;
+    for (const f of this.livingFoes()) {
+      const d = f.pos.distanceTo(from.pos);
+      if (d < bd) { bd = d; best = f; }
+    }
+    return best;
   }
 
   resetFighters() {
     const hp = this.mode.hp || 100;
-    for (const [f, z, heading] of [[this.my, -7, 0], [this.foe, 7, Math.PI]]) {
-      f.pos.set(0, 0, z);
-      f.heading = heading;
+    const all = [this.my, ...this.foes];
+    for (const f of all) {
       f.speed = 0;
-      f.hp = hp;
       f.cd = 0;
       f.lightCd = 0;
       f.strikeT = 9;
@@ -628,10 +814,28 @@ export class WarriorGame {
       f.person.group.position.y = 0;
       f.person.rig.rotation.set(0, 0, 0);
     }
-    if (this.foe.person.telegraph) {
-      this.foe.person.telegraph.visible = false;
-      this.foe.person.telegraph.material.opacity = 0;
-    }
+    this.my.pos.set(0, 0, -7);
+    this.my.heading = 0;
+    this.my.hp = hp;
+    this.my.maxHp = hp;
+    // 野獸排開站位(弧形),開場臉必朝玩家(鐵則)
+    const n = this.foes.length;
+    this.foes.forEach((f, i) => {
+      const off = i - (n - 1) / 2;
+      f.pos.set(off * 4.2, 0, 7 + Math.abs(off) * 0.8);
+      f.heading = Math.atan2(this.my.pos.x - f.pos.x, this.my.pos.z - f.pos.z);
+      f.hp = Math.round(hp * f.stats.hpMul);
+      f.maxHp = f.hp;
+      if (f.person.telegraph) {
+        f.person.telegraph.visible = false;
+        f.person.telegraph.material.opacity = 0;
+      }
+      f.brain.retreatT = 0;
+      f.brain.orbitDir = i % 2 === 0 ? 1 : -1;
+      f.brain.breatherT = 4 + Math.random() * 4;
+      f.brain.restT = 0;
+      f.brain.pounceT = 3 + i * 2 + Math.random() * 3; // 錯開撲擊節奏,群獸不同步撲
+    });
     this.roundNo = 0;
     this.lastHit = null;
     this.endT = -1;
@@ -640,22 +844,21 @@ export class WarriorGame {
     this.projectiles = [];
     this._pendingStrikes = [];
     if (this.honey) { this.scene.remove(this.honey.group); this.honey = null; }
-    this.honeyTimer = HONEY_MIN_T + Math.random() * (HONEY_MAX_T - HONEY_MIN_T);
-    if (this.foe.brain) {
-      this.foe.brain.retreatT = 0;
-      this.foe.brain.orbitDir = Math.random() < 0.5 ? -1 : 1;
-      this.foe.brain.breatherT = 4 + Math.random() * 4;
-      this.foe.brain.restT = 0;
-      this.foe.brain.pounceT = 3 + Math.random() * 3;
-    }
+    this.honeyTimer = this._nextHoneyTimer();
     this.syncFighterTransforms();
     const fwd = new THREE.Vector3(Math.sin(this.my.heading), 0, Math.cos(this.my.heading));
     this.camPos.copy(this.my.pos).addScaledVector(fwd, -5.5).setY(3.0);
     this.camLook.copy(this.my.pos).addScaledVector(fwd, 8).setY(1.3);
   }
 
+  _nextHoneyTimer() {
+    // 多獸時蜂蜜更頻繁(公平鐵則的另一半:壓力大,補給也多)
+    const scale = this.foes && this.foes.length > 1 ? 0.7 : 1;
+    return (HONEY_MIN_T + Math.random() * (HONEY_MAX_T - HONEY_MIN_T)) * scale;
+  }
+
   syncFighterTransforms() {
-    for (const f of [this.my, this.foe]) {
+    for (const f of [this.my, ...this.foes]) {
       f.person.group.position.x = f.pos.x;
       f.person.group.position.z = f.pos.z;
       f.person.group.rotation.y = f.heading;
@@ -663,25 +866,34 @@ export class WarriorGame {
   }
 
   // ---------- 局面控制 ----------
-  applyPresentation({ difficulty, modeId }) {
+  applyPresentation({ difficulty, modeId, beastId }) {
+    let rebuild = false;
     if (difficulty && DIFFICULTY_PRESETS[difficulty]) {
       const wasDeath = !!DIFFICULTY_PRESETS[this.difficulty]?.deathMode;
       this.difficulty = difficulty;
-      if (wasDeath !== !!DIFFICULTY_PRESETS[difficulty].deathMode) this._buildFighters(); // 黑獅⇄金獅即時重建
+      if (wasDeath !== !!DIFFICULTY_PRESETS[difficulty].deathMode) rebuild = true; // 黑獸⇄原色即時重建
+    }
+    if (beastId && BEAST_LOADOUTS[beastId] && beastId !== this.beastId) {
+      this.beastId = beastId;
+      rebuild = true;
     }
     if (modeId && GAME_MODES[modeId]) {
       this.modeId = modeId;
       this.mode = getModeConfig(modeId);
     }
-    saveSettings({ difficulty: this.difficulty, modeId: this.modeId });
-    this.message = `${this.mode.label} · ${DIFFICULTY_LABELS[this.difficulty]} 已設定。`;
+    if (rebuild) {
+      this._buildFighters();
+      this.resetFighters();
+    }
+    saveSettings({ difficulty: this.difficulty, modeId: this.modeId, beastId: this.beastId });
+    this.message = `${this.mode.label} · ${BEAST_LOADOUTS[this.beastId].label} · ${DIFFICULTY_LABELS[this.difficulty]} 已設定。`;
     this.pushHud();
   }
 
   openHomeMenu() {
     this.phase = "menu";
     this.overlay.visible = false;
-    this.message = "在首頁選擇模式與難度後開始。";
+    this.message = "在首頁選擇模式、野獸陣容與難度後開始。";
     this.pushHud();
   }
 
@@ -689,7 +901,7 @@ export class WarriorGame {
     this.resetFighters();
     this.phase = "gate";
     this.message = "點畫面(或空白鍵/K)開戰!WASD 走位、J 輕拳、K 重拳(可蓄力放聖靈金光)。";
-    this.emitEvent("match-start", { mode: this.mode.label });
+    this.emitEvent("match-start", { mode: this.mode.label, loadout: BEAST_LOADOUTS[this.beastId].label });
     this.pushHud();
   }
 
@@ -698,7 +910,7 @@ export class WarriorGame {
     if (this.phase === "gate") {
       this.phase = "battle";
       this.emitEvent("battle-start", {});
-      this.message = "開戰!倚靠耶和華的靈,迎向獅子!";
+      this.message = "開戰!倚靠耶和華,把羊羔從野獸口中救回來!";
       this.pushHud();
     }
   }
@@ -733,21 +945,23 @@ export class WarriorGame {
     const c = this.my.chargeT;
     this.my.chargeT = -1;
     if (this.phase !== "battle" || this.my.koT >= 0) return;
+    const target = this.nearestFoe();
+    if (!target) return;
     if (c >= CHARGE_MIN) {
-      this.superAttack(this.my, this.foe, clamp((c - CHARGE_MIN) / (CHARGE_FULL - CHARGE_MIN), 0, 1));
+      this.superAttack(this.my, target, clamp((c - CHARGE_MIN) / (CHARGE_FULL - CHARGE_MIN), 0, 1));
     } else {
-      this.attack(this.my, this.foe);
+      this.attack(this.my, target);
     }
   }
 
-  // ---------- 輕拳(J):快、傷害低、獨立冷卻,不蓄力 ----------
+  // ---------- 輕拳(J):快、傷害低、獨立冷卻,不蓄力;目標=最近的活獸 ----------
   lightPunch() {
     if (this.overlay.visible || this.phase !== "battle" || this.endT >= 0) return;
     const f = this.my;
     if (f.koT >= 0 || f.blocking || f.chargeT >= 0) return;
     if (f.lightCd > 0 || f.stunT < this._stunDur()) return;
-    const target = this.foe;
-    if (target.koT >= 0) return;
+    const target = this.nearestFoe();
+    if (!target) return;
     f.lightCd = LIGHT_PUNCH.cd;
     f.strikeT = 0;
     f.strikeKind = "light";
@@ -768,7 +982,7 @@ export class WarriorGame {
       });
     } else {
       this.emitEvent("miss", { who: "me" });
-      this.message = dist > LIGHT_PUNCH.reach + BODY_REACH ? "太遠了——再靠近一步出拳!" : "沒對準——轉身面向獅子!";
+      this.message = dist > LIGHT_PUNCH.reach + BODY_REACH ? "太遠了——再靠近一步出拳!" : `沒對準——轉身面向${target.stats.label}!`;
       this.pushHud();
     }
   }
@@ -812,7 +1026,7 @@ export class WarriorGame {
     } else {
       this.emitEvent("miss", { who: isPlayer ? "me" : "ai" });
       if (isPlayer) {
-        this.message = dist > reach ? "太遠了——再靠近一步出手!" : "沒對準——轉身面向獅子再出手!";
+        this.message = dist > reach ? "太遠了——再靠近一步出手!" : `沒對準——轉身面向${target.stats.label}再出手!`;
         this.pushHud();
       }
     }
@@ -822,7 +1036,7 @@ export class WarriorGame {
     return 1.1;
   }
 
-  // ---------- 蓄力大招:聖靈金光(士14:6,大傷害、不血腥) ----------
+  // ---------- 蓄力大招:聖靈金光(撒上16:13,大傷害、不血腥;光波可穿透多獸) ----------
   superAttack(fighter, target, charge01) {
     if (this.phase !== "battle" || this.endT >= 0 || fighter.koT >= 0) return;
     const w = WEAPONS.fists;
@@ -832,20 +1046,20 @@ export class WarriorGame {
     fighter.strikeT = 0;
     if (isPlayer) fighter.strikeKind = "holy";
     this.roundNo += 1;
-    if (isPlayer && fighter.pos.distanceTo(target.pos) <= 22) {
+    if (isPlayer && target && fighter.pos.distanceTo(target.pos) <= 22) {
       fighter.heading = Math.atan2(target.pos.x - fighter.pos.x, target.pos.z - fighter.pos.z);
     }
     let dmg = w.dmg * (1.4 + 1.1 * charge01);
     dmg *= isPlayer ? 1 + preset.assist * 0.6 : preset.aiDmg;
-    this._fireHolyWave(fighter, target, Math.round(dmg));
+    this._fireHolyWave(fighter, Math.round(dmg));
     this.emitEvent("super", { who: isPlayer ? "me" : "ai" });
     this.message = isPlayer
       ? "聖靈的能力臨到——金光大作!"
-      : "獅子撲勢驚人——快閃開!";
+      : "野獸撲勢驚人——快閃開!";
     this.pushHud();
   }
 
-  _fireHolyWave(fighter, target, dmg) {
+  _fireHolyWave(fighter, dmg) {
     const wave = new THREE.Group();
     const arcMesh = new THREE.Mesh(
       new THREE.TorusGeometry(1.0, 0.15, 10, 26, Math.PI * 0.95),
@@ -868,14 +1082,14 @@ export class WarriorGame {
     this.projectiles.push({
       mesh: wave, vel: fwd.multiplyScalar(13), t: 0,
       dmg, stun: 0,
-      target,
       who: fighter === this.my ? "me" : "ai",
       weapon: { label: "聖靈金光", short: "金光" },
       isWave: true, hitR: 1.6, life: 1.3,
+      hitSet: new Set(), // 穿透:同一獸只結算一次,可連中多獸
     });
   }
 
-  // ---------- 格擋判定(參孫限定;獅子從不格擋) ----------
+  // ---------- 格擋判定(大衛限定;野獸從不格擋) ----------
   _blockCheck(target, src, kind) {
     if (!target.blocking || !src) return null;
     const ang = Math.abs(wrapAngle(Math.atan2(src.x - target.pos.x, src.z - target.pos.z) - target.heading));
@@ -884,10 +1098,19 @@ export class WarriorGame {
     return "block";
   }
 
+  foesHpSummary() {
+    return this.foes.map((f) => ({ type: f.type, label: f.stats.label, short: f.stats.short, hp: f.hp, maxHp: f.maxHp, down: f.koT >= 0 }));
+  }
+
+  totalFoesHp() {
+    return this.foes.reduce((s, f) => s + f.hp, 0);
+  }
+
   applyHit(target, dmg, { who, weapon, stun, attacker, from, kind, knockback }) {
     if (this.phase !== "battle" || target.koT >= 0 || this.endT >= 0) return;
     const src = from || (attacker ? attacker.pos : null);
     const block = this._blockCheck(target, src, kind);
+    const targetLabel = target === this.my ? "大衛" : target.stats.label;
     if (block) {
       this.hitFlash.position.copy(target.pos).setY(1.5);
       this.hitFlash.material.color.setHex(0xffffff);
@@ -901,7 +1124,7 @@ export class WarriorGame {
           attacker.chargeT = -1;
         }
         this.emitEvent("parry", { who: target === this.my ? "me" : "ai" });
-        this.message = "完美格擋!獅子被震退!";
+        this.message = `完美格擋!${attacker && attacker !== this.my ? attacker.stats.label : "野獸"}被震退!`;
         this.pushHud();
         return;
       }
@@ -914,13 +1137,9 @@ export class WarriorGame {
       }
       target.hp = Math.max(0, target.hp - reduced);
       this.lastHit = { who, dmg: reduced, weapon: weapon.short };
-      this.emitEvent("hit", { who, dmg: reduced, weapon: weapon.label, stun: false, myHp: this.my.hp, aiHp: this.foe.hp, round: this.roundNo });
+      this.emitEvent("hit", { who, dmg: reduced, weapon: weapon.label, stun: false, myHp: this.my.hp, foesHp: this.foesHpSummary(), aiHp: this.totalFoesHp(), round: this.roundNo });
       this.message = `舉臂擋下大半——只受 -${reduced}`;
-      if (target.hp <= 0) {
-        target.koT = 0;
-        this.endT = 0;
-        this.emitEvent("ko", { winner: who === "me" ? "me" : "ai" });
-      }
+      if (target.hp <= 0) this._handleKnockout(target, who);
       this.pushHud();
       return;
     }
@@ -946,37 +1165,56 @@ export class WarriorGame {
     this.lastHit = { who, dmg, weapon: weapon.short };
     this.emitEvent("hit", {
       who, dmg, weapon: weapon.label, stun: !!stun,
-      myHp: this.my.hp, aiHp: this.foe.hp, round: this.roundNo,
+      myHp: this.my.hp, foesHp: this.foesHpSummary(), aiHp: this.totalFoesHp(), round: this.roundNo,
+      beast: target !== this.my ? target.type : (attacker && attacker !== this.my ? attacker.type : null),
     });
     this.message = isMe
-      ? `${weapon.label}命中!獅子 -${dmg}`
-      : `被獅子的${weapon.label}擊中 -${dmg}——拉開距離再反擊!`;
-    if (target.hp <= 0) {
-      target.koT = 0;
-      this.endT = 0;
-      this.emitEvent("ko", { winner: isMe ? "me" : "ai" });
-    }
+      ? `${weapon.label}命中!${targetLabel} -${dmg}`
+      : `被${weapon.label}擊中 -${dmg}——拉開距離再反擊!`;
+    if (target.hp <= 0) this._handleKnockout(target, who);
     this.pushHud();
+  }
+
+  // KO 分流:玩家倒下=終局;單獸倒下=繼續戰,全獸倒下=得勝終局
+  _handleKnockout(target, who) {
+    target.koT = 0;
+    if (target === this.my) {
+      this.endT = 0;
+      this.emitEvent("ko", { winner: "ai" });
+      return;
+    }
+    const remaining = this.livingFoes().length;
+    this.emitEvent("beast-down", { beast: target.type, label: target.stats.label, remaining });
+    if (remaining === 0) {
+      this.endT = 0;
+      this.emitEvent("ko", { winner: "me" });
+    } else {
+      this.message = `${target.stats.label}被制伏了!還有 ${remaining} 隻野獸——不要鬆懈!`;
+    }
   }
 
   finishMatch() {
     this.phase = "ended";
-    const win = this.foe.hp <= 0 && this.my.hp > 0;
-    const draw = this.my.hp === this.foe.hp;
-    const byRounds = this.mode.roundCap && this.roundNo >= this.mode.roundCap && this.my.hp > 0 && this.foe.hp > 0;
-    const rWin = byRounds ? this.my.hp > this.foe.hp : win;
+    const foesLeft = this.totalFoesHp();
+    const foesMax = this.foes.reduce((s, f) => s + f.maxHp, 0) || 1;
+    const win = this.livingFoes().length === 0 && this.my.hp > 0;
+    const myRatio = this.my.hp / (this.my.maxHp || 1);
+    const foeRatio = foesLeft / foesMax;
+    const draw = Math.abs(myRatio - foeRatio) < 0.0001 && !win;
+    const byRounds = this.mode.roundCap && this.roundNo >= this.mode.roundCap && this.my.hp > 0 && foesLeft > 0;
+    const rWin = byRounds ? myRatio > foeRatio : win;
     this.overlay = {
       visible: true,
       eyebrow: rWin ? "得勝!" : draw ? "勢均力敵" : "溫柔的提醒",
-      title: byRounds ? `戰滿三百回合 ${this.my.hp}:${this.foe.hp}` : rWin ? "耶和華的靈大大感動參孫!" : "再試一次",
+      title: byRounds ? `戰滿三百回合 ${this.my.hp}:${foesLeft}` : rWin ? "耶和華救我脫離獅子和熊的爪!" : "再試一次",
       text: rWin
-        ? "手無器械,卻勝過吼叫的獅子!🦁\n士師記十四章六節:「耶和華的靈大大感動參孫,他雖然手無器械,卻將獅子撕裂,如同撕裂山羊羔一樣。」"
+        ? "羊羔救回來了!🦁🐻\n撒母耳記上十七章三十七節:「耶和華救我脫離獅子和熊的爪,也必救我脫離這非利士人的手。」"
         : draw
-          ? "勢均力敵!再與獅子周旋一次!"
-          : "再試一次——能力不在乎自己,在乎耶和華的靈。",
+          ? "勢均力敵!再與野獸周旋一次!"
+          : "再試一次——能力不在乎自己,在乎耶和華。",
       canResume: false,
     };
-    this.emitEvent("match-end", { win: rWin, draw, myHp: this.my.hp, aiHp: this.foe.hp, rounds: this.roundNo });
+    this.emitEvent("match-end", { win: rWin, draw, myHp: this.my.hp, aiHp: foesLeft, rounds: this.roundNo });
     this.message = `比武結束——大戰 ${this.roundNo} 回合。`;
     this.saveGame(true);
     this.pushHud();
@@ -1164,7 +1402,7 @@ export class WarriorGame {
       this.honeyTimer -= delta;
       if (this.honeyTimer <= 0) {
         this.spawnHoney();
-        this.honeyTimer = HONEY_MIN_T + Math.random() * (HONEY_MAX_T - HONEY_MIN_T);
+        this.honeyTimer = this._nextHoneyTimer();
       }
       return;
     }
@@ -1185,7 +1423,7 @@ export class WarriorGame {
     }
     const d = Math.hypot(this.my.pos.x - h.group.position.x, this.my.pos.z - h.group.position.z);
     if (d < HONEY_EAT_DIST) {
-      this.my.hp = Math.min(this.mode.hp || 100, this.my.hp + (this.mode.hp || 100) * HONEY_HEAL_PCT);
+      this.my.hp = Math.min(this.my.maxHp, this.my.hp + this.my.maxHp * HONEY_HEAL_PCT);
       this.scene.remove(h.group);
       this.honey = null;
       this.message = "野地的蜂蜜!";
@@ -1194,23 +1432,25 @@ export class WarriorGame {
     }
   }
 
-  // ---------- 獅子攻擊:爪擊(輕)/撲咬(重,帶紅色預告) ----------
-  lionClaw(fighter, target) {
+  // ---------- 野獸攻擊:爪擊(輕,無預告)/撲擊(重,帶紅色預告)——量值取自該獸 stats ----------
+  beastClaw(fighter, target) {
     if (this.phase !== "battle" || this.endT >= 0 || fighter.koT >= 0) return;
     if (fighter.lightCd > 0 || fighter.stunT < this._stunDur()) return;
     const preset = DIFFICULTY_PRESETS[this.difficulty];
-    fighter.lightCd = LION_CLAW.cd * preset.aiCd;
+    const claw = fighter.stats.claw;
+    const packScale = PACK_DMG_SCALE[this.foes.length] ?? 0.6;
+    fighter.lightCd = claw.cd * preset.aiCd;
     fighter.strikeT = 0;
     this.roundNo += 1;
     const dist = fighter.pos.distanceTo(target.pos);
     const toTarget = Math.atan2(target.pos.x - fighter.pos.x, target.pos.z - fighter.pos.z);
-    const facing = Math.abs(wrapAngle(toTarget - fighter.heading)) <= LION_CLAW.arc;
-    let lands = dist <= LION_CLAW.reach + BODY_REACH && facing;
+    const facing = Math.abs(wrapAngle(toTarget - fighter.heading)) <= claw.arc;
+    let lands = dist <= claw.reach + BODY_REACH && facing;
     if (lands && Math.random() > clamp(preset.aiSkill + 0.18, 0, 0.95)) lands = false;
     if (lands) {
       this._pendingStrikes.push({
-        target, dmg: Math.round(LION_CLAW.dmg * preset.aiDmg),
-        opts: { who: "ai", weapon: { label: "獅爪", short: "爪擊" }, stun: 0, attacker: fighter, kind: "melee", knockback: LION_CLAW.knockback },
+        target, dmg: Math.max(1, Math.round(claw.dmg * preset.aiDmg * packScale)),
+        opts: { who: "ai", weapon: { label: claw.label, short: claw.shortLabel }, stun: 0, attacker: fighter, kind: "melee", knockback: claw.knockback },
         t: 0.16,
       });
     } else {
@@ -1218,38 +1458,41 @@ export class WarriorGame {
     }
   }
 
-  _startLionPounce(fighter, target) {
+  _startBeastPounce(fighter, target) {
+    const pounce = fighter.stats.pounce;
     fighter.pounce = {
       phase: "telegraph",
       t: 0,
-      dur: LION_POUNCE.telegraphMin + Math.random() * (LION_POUNCE.telegraphMax - LION_POUNCE.telegraphMin),
+      dur: pounce.telegraphMin + Math.random() * (pounce.telegraphMax - pounce.telegraphMin),
     };
     fighter.heading = Math.atan2(target.pos.x - fighter.pos.x, target.pos.z - fighter.pos.z);
     fighter.speed = 0;
     if (fighter.person.telegraph) fighter.person.telegraph.visible = true;
-    this.message = "獅子要撲了——快閃開!";
-    this.emitEvent("lion-telegraph", {});
+    this.message = `${fighter.stats.label}要撲了——快閃開!`;
+    this.emitEvent("beast-telegraph", { beast: fighter.type, label: fighter.stats.label });
     this.pushHud();
   }
 
-  _resolveLionPounce(fighter, target) {
+  _resolveBeastPounce(fighter, target) {
     const preset = DIFFICULTY_PRESETS[this.difficulty];
+    const pounce = fighter.stats.pounce;
+    const packScale = PACK_DMG_SCALE[this.foes.length] ?? 0.6;
     const dist = fighter.pos.distanceTo(target.pos);
     const toTarget = Math.atan2(target.pos.x - fighter.pos.x, target.pos.z - fighter.pos.z);
-    const facing = Math.abs(wrapAngle(toTarget - fighter.heading)) <= LION_POUNCE.arc;
-    const lands = dist <= LION_POUNCE.reach + BODY_REACH && facing && target.koT < 0;
-    fighter.pounce = { phase: "commit", t: 0, dur: LION_POUNCE.commitDur };
+    const facing = Math.abs(wrapAngle(toTarget - fighter.heading)) <= pounce.arc;
+    const lands = dist <= pounce.reach + BODY_REACH && facing && target.koT < 0;
+    fighter.pounce = { phase: "commit", t: 0, dur: pounce.commitDur };
     if (fighter.person.telegraph) fighter.person.telegraph.visible = false;
-    fighter.cd = LION_POUNCE.cd * preset.aiCd;
+    fighter.cd = pounce.cd * preset.aiCd;
     if (lands) {
       this._pendingStrikes.push({
-        target, dmg: Math.round(LION_POUNCE.dmg * preset.aiDmg),
-        opts: { who: "ai", weapon: { label: "獅子撲咬", short: "撲咬" }, stun: 0, attacker: fighter, kind: "melee", knockback: LION_POUNCE.knockback },
+        target, dmg: Math.max(1, Math.round(pounce.dmg * preset.aiDmg * packScale)),
+        opts: { who: "ai", weapon: { label: pounce.label, short: pounce.shortLabel }, stun: 0, attacker: fighter, kind: "melee", knockback: pounce.knockback },
         t: 0.08,
       });
     } else {
       this.emitEvent("miss", { who: "ai" });
-      this.message = "獅子撲空了——趁機反擊!";
+      this.message = `${fighter.stats.label}撲空了——趁機反擊!`;
       this.pushHud();
     }
   }
@@ -1264,13 +1507,13 @@ export class WarriorGame {
 
     if (!paused && this.phase === "battle") {
       this.updatePlayerMovement(sdt);
-      this.updateLionAi(sdt);
+      for (const f of this.foes) this.updateBeastAi(f, sdt);
       this.updateProjectiles(sdt);
       this.updateHoney(sdt);
       this.resolveBodyPush();
       this.syncFighterTransforms();
 
-      if (this.mode.roundCap && this.roundNo >= this.mode.roundCap && this.endT < 0 && this.my.hp > 0 && this.foe.hp > 0) {
+      if (this.mode.roundCap && this.roundNo >= this.mode.roundCap && this.endT < 0 && this.my.hp > 0 && this.livingFoes().length > 0) {
         this.endT = 0.01;
       }
       if (this.endT >= 0) {
@@ -1288,7 +1531,7 @@ export class WarriorGame {
       this.hitFlash.material.opacity = 0;
     }
     this.hitCamT += delta;
-    for (const f of [this.my, this.foe]) {
+    for (const f of [this.my, ...this.foes]) {
       f.hitT += sdt;
       f.stunT += sdt;
       f.strikeT += sdt;
@@ -1336,9 +1579,10 @@ export class WarriorGame {
       if (f.blocking) target *= 0.35;
       const turn = (this.input.isDown("left") ? 1 : 0) - (this.input.isDown("right") ? 1 : 0);
       f.heading += turn * preset.turnRate * dt;
-      if (turn === 0 && !this.input.isDown("sprint") && !this.input.isDown("up") && this.foe.koT < 0) {
-        const dxF = this.foe.pos.x - f.pos.x;
-        const dzF = this.foe.pos.z - f.pos.z;
+      const nearest = this.nearestFoe();
+      if (turn === 0 && !this.input.isDown("sprint") && !this.input.isDown("up") && nearest) {
+        const dxF = nearest.pos.x - f.pos.x;
+        const dzF = nearest.pos.z - f.pos.z;
         const distF = Math.hypot(dxF, dzF);
         if (distF <= AUTO_FACE_RANGE) {
           const diff = wrapAngle(Math.atan2(dxF, dzF) - f.heading);
@@ -1363,30 +1607,38 @@ export class WarriorGame {
     f.pos.z = nz;
   }
 
+  // 身體推擠:玩家與每隻活獸、活獸彼此之間,兩兩互推(倒地的獸不再推擠)
   resolveBodyPush() {
-    const dx = this.foe.pos.x - this.my.pos.x;
-    const dz = this.foe.pos.z - this.my.pos.z;
-    const d = Math.hypot(dx, dz);
-    if (d > 0.01 && d < 0.9) {
-      const push = (0.9 - d) / 2;
-      const ux = dx / d;
-      const uz = dz / d;
-      this.my.pos.x -= ux * push;
-      this.my.pos.z -= uz * push;
-      this.foe.pos.x += ux * push;
-      this.foe.pos.z += uz * push;
+    const all = [this.my, ...this.livingFoes()];
+    for (let i = 0; i < all.length; i += 1) {
+      for (let j = i + 1; j < all.length; j += 1) {
+        const a = all[i];
+        const b = all[j];
+        const dx = b.pos.x - a.pos.x;
+        const dz = b.pos.z - a.pos.z;
+        const d = Math.hypot(dx, dz);
+        if (d > 0.01 && d < 0.9) {
+          const push = (0.9 - d) / 2;
+          const ux = dx / d;
+          const uz = dz / d;
+          a.pos.x -= ux * push;
+          a.pos.z -= uz * push;
+          b.pos.x += ux * push;
+          b.pos.z += uz * push;
+        }
+      }
     }
   }
 
-  // ---------- 獅子 AI(三腦:走位+爪擊/撲咬決策+喘息) ----------
-  updateLionAi(dt) {
-    const f = this.foe;
+  // ---------- 野獸 AI(三腦:走位+爪擊/撲擊決策+喘息)——每隻獨立,群獸撲擊節奏錯開 ----------
+  updateBeastAi(f, dt) {
     if (f.koT >= 0) {
       f.speed += (0 - f.speed) * Math.min(1, dt * 3);
       this.movePos(f, dt);
       return;
     }
     const preset = DIFFICULTY_PRESETS[this.difficulty];
+    const stats = f.stats;
     const brain = f.brain;
     const stunned = f.stunT < this._stunDur();
     const dx = this.my.pos.x - f.pos.x;
@@ -1397,7 +1649,7 @@ export class WarriorGame {
     if (f.pounce) {
       f.pounce.t += dt;
       if (f.pounce.phase === "telegraph" && f.pounce.t >= f.pounce.dur) {
-        this._resolveLionPounce(f, this.my);
+        this._resolveBeastPounce(f, this.my);
       } else if (f.pounce.phase === "commit" && f.pounce.t >= f.pounce.dur) {
         f.pounce = null;
       }
@@ -1407,11 +1659,11 @@ export class WarriorGame {
     }
 
     let desiredHeading = toPlayer;
-    let desiredSpeed = preset.maxFwd * preset.aiSpd * (dist > 5 ? 1 : dist > 2.2 ? 0.6 : 0.3);
+    let desiredSpeed = preset.maxFwd * preset.aiSpd * stats.speedMul * (dist > 5 ? 1 : dist > 2.2 ? 0.6 : 0.3);
     if (brain.retreatT > 0) {
       brain.retreatT -= dt;
       desiredHeading = toPlayer + Math.PI + brain.orbitDir * 0.5;
-      desiredSpeed = preset.maxFwd * preset.aiSpd * 0.8;
+      desiredSpeed = preset.maxFwd * preset.aiSpd * stats.speedMul * 0.8;
     }
     if (Math.abs(f.pos.x) > ARENA_HALF - 2 || Math.abs(f.pos.z) > ARENA_HALF - 2) {
       desiredHeading = Math.atan2(-f.pos.x, -f.pos.z);
@@ -1431,22 +1683,27 @@ export class WarriorGame {
     }
 
     const angDiff = wrapAngle(desiredHeading - f.heading);
-    const maxTurn = preset.turnRate * preset.aiSpd * dt;
+    const maxTurn = preset.turnRate * preset.aiSpd * stats.speedMul * dt;
     f.heading += clamp(angDiff, -maxTurn, maxTurn);
     f.speed += (desiredSpeed * clamp(1 - Math.abs(angDiff) / Math.PI, 0.25, 1) - f.speed) * Math.min(1, dt * 3.0);
     this.movePos(f, dt);
     f.walkT += dt * (Math.abs(f.speed) / 2.2);
 
     if (this.mode.passive || stunned) return;
-    const facingOk = Math.abs(wrapAngle(toPlayer - f.heading)) <= LION_CLAW.arc + 0.25;
+    const facingOk = Math.abs(wrapAngle(toPlayer - f.heading)) <= stats.claw.arc + 0.25;
     brain.pounceT = Math.max(0, (brain.pounceT ?? 3) - dt);
-    if (f.cd <= 0 && brain.pounceT <= 0 && dist >= 1.4 && dist <= LION_POUNCE.reach + BODY_REACH + 2.5) {
-      brain.pounceT = 6.5 + Math.random() * 5;
-      this._startLionPounce(f, this.my);
-      return;
+    if (f.cd <= 0 && brain.pounceT <= 0 && dist >= 1.4 && dist <= stats.pounce.reach + BODY_REACH + 2.5) {
+      // 群獸禮讓:同一時刻只允許一隻獸亮預告(孩子看得懂該閃誰)
+      const someoneTelegraphing = this.foes.some((o) => o !== f && o.pounce && o.pounce.phase === "telegraph");
+      if (!someoneTelegraphing) {
+        brain.pounceT = 6.5 + Math.random() * 5;
+        this._startBeastPounce(f, this.my);
+        return;
+      }
+      brain.pounceT = 1 + Math.random() * 1.5; // 稍後再試
     }
-    if (f.lightCd <= 0 && dist <= LION_CLAW.reach + BODY_REACH && facingOk) {
-      this.lionClaw(f, this.my);
+    if (f.lightCd <= 0 && dist <= stats.claw.reach + BODY_REACH && facingOk) {
+      this.beastClaw(f, this.my);
       if (Math.random() < 0.35) {
         brain.retreatT = 0.8 + Math.random();
         brain.orbitDir = Math.random() < 0.5 ? -1 : 1;
@@ -1470,15 +1727,18 @@ export class WarriorGame {
         for (const c of p.mesh.children) if (c.rotation) c.rotation.z += dt * 5.5;
         p.mesh.children[1].material.opacity = 0.6 * (1 - (p.t / p.life) * 0.7);
       }
-      if (!p.done && p.target.koT < 0) {
-        const chest = p.target.pos.clone().setY(p.isWave ? 1.4 : 1.35);
-        if (p.mesh.position.distanceTo(chest) < (p.hitR || 1.0)) {
-          p.done = true;
-          p.remove = true;
-          this.applyHit(p.target, p.dmg, {
-            who: p.who, weapon: p.weapon, stun: p.stun,
-            from: p.mesh.position, kind: p.isWave ? "wave" : "proj",
-          });
+      // 金光穿透:掃過每隻活獸,同一獸只結算一次(不因命中而消失,可連中多獸)
+      if (p.who === "me") {
+        for (const foe of this.livingFoes()) {
+          if (p.hitSet && p.hitSet.has(foe)) continue;
+          const chest = foe.pos.clone().setY(p.isWave ? 1.4 : 1.35);
+          if (p.mesh.position.distanceTo(chest) < (p.hitR || 1.0)) {
+            if (p.hitSet) p.hitSet.add(foe);
+            this.applyHit(foe, p.dmg, {
+              who: p.who, weapon: p.weapon, stun: p.stun,
+              from: p.mesh.position, kind: p.isWave ? "wave" : "proj",
+            });
+          }
         }
       }
       if (p.isWave ? p.t > p.life : p.t > 3.5) p.remove = true;
@@ -1496,15 +1756,16 @@ export class WarriorGame {
     if (this.input.consumePress("lightAttack")) this.lightPunch();
   }
 
-  // ---------- 姿勢動畫:參孫(人形)+獅子(四足)分開更新 ----------
+  // ---------- 姿勢動畫:大衛(人形)+野獸群(四足)分開更新 ----------
   updatePoses() {
-    this.updateSamsonPose(this.my, this.foe);
-    this.updateLionPose(this.foe, this.my);
+    this.updateDavidPose(this.my);
+    for (const f of this.foes) this.updateBeastPose(f);
   }
 
-  updateSamsonPose(f, other) {
+  updateDavidPose(f) {
     const person = f.person;
-    const dist = f.pos.distanceTo(other.pos);
+    const nearest = this.nearestFoe();
+    const dist = nearest ? f.pos.distanceTo(nearest.pos) : 99;
     const engaged = this.phase === "battle" && dist < 9;
 
     const amp = clamp(Math.abs(f.speed) / 6, 0, 0.62);
@@ -1610,7 +1871,7 @@ export class WarriorGame {
     }
   }
 
-  updateLionPose(f) {
+  updateBeastPose(f) {
     const person = f.person;
     const amp = clamp(Math.abs(f.speed) / 5, 0, 0.5);
     const t = f.walkT * Math.PI * 2;
@@ -1634,7 +1895,7 @@ export class WarriorGame {
       person.legs.fl.pivot.rotation.x = -0.7 * k;
     }
 
-    // 撲咬紅色預告扇形(判定=畫面:範圍=實際命中範圍)
+    // 撲擊紅色預告扇形(判定=畫面:範圍=實際命中範圍)
     if (person.telegraph) {
       if (f.pounce && f.pounce.phase === "telegraph") {
         person.telegraph.visible = true;
@@ -1645,7 +1906,7 @@ export class WarriorGame {
       }
     }
 
-    // 撲咬瞬間:前身抬起撲落
+    // 撲擊瞬間:前身抬起撲落
     let rigX = 0;
     if (f.pounce && f.pounce.phase === "commit") {
       const k = clamp(f.pounce.t / f.pounce.dur, 0, 1);
@@ -1675,13 +1936,14 @@ export class WarriorGame {
   updateCamera(delta) {
     let desiredPos;
     let desiredLook;
-    const mid = this.my.pos.clone().add(this.foe.pos).multiplyScalar(0.5);
+    const focusFoe = this.nearestFoe() || this.foes[0];
+    const mid = this.my.pos.clone().add(focusFoe.pos).multiplyScalar(0.5);
     if (this.phase === "menu") {
       const a = this.time * 0.08;
       desiredPos = new THREE.Vector3(Math.cos(a) * 22, 8, Math.sin(a) * 22);
       desiredLook = new THREE.Vector3(0, 1.1, 0);
     } else if (this.hitCamT < 0.55 && this.phase === "battle") {
-      const dir = this.foe.pos.clone().sub(this.my.pos).setY(0).normalize();
+      const dir = focusFoe.pos.clone().sub(this.my.pos).setY(0).normalize();
       const perp = new THREE.Vector3(-dir.z, 0, dir.x);
       desiredPos = mid.clone().addScaledVector(perp, 5).setY(1.9);
       desiredLook = mid.clone().setY(1.35);
@@ -1712,14 +1974,17 @@ export class WarriorGame {
     if (!this.onHudUpdate) return;
     const preset = DIFFICULTY_PRESETS[this.difficulty];
     const w = WEAPONS.fists;
-    const dist = this.my.pos.distanceTo(this.foe.pos);
+    const nearest = this.nearestFoe();
+    const dist = nearest ? this.my.pos.distanceTo(nearest.pos) : 0;
     const heavyReady01 = w.cd > 0 ? clamp(1 - this.my.cd / w.cd, 0, 1) : 1;
-    const inReach = dist <= w.reach + BODY_REACH + preset.assist * 0.6;
+    const inReach = nearest ? dist <= w.reach + BODY_REACH + preset.assist * 0.6 : false;
     const phaseLabels = { menu: "主選單", gate: "出戰準備", battle: "激戰中", ended: "終場" };
     this.onHudUpdate({
       myHp: this.my.hp,
-      aiHp: this.foe.hp,
-      maxHp: this.mode.hp || 100,
+      aiHp: this.totalFoesHp(),
+      foes: this.foesHpSummary(),
+      maxHp: this.my.maxHp || 100,
+      loadoutLabel: BEAST_LOADOUTS[this.beastId].label,
       roundNo: this.roundNo,
       roundCap: this.mode.roundCap || null,
       modeLabel: this.mode.label,
@@ -1735,7 +2000,7 @@ export class WarriorGame {
       charge01: this.my.chargeT >= 0 ? clamp(this.my.chargeT / CHARGE_FULL, 0, 1) : 0,
       chargeReady: this.my.chargeT >= CHARGE_MIN,
       inReach,
-      gapText: this.phase === "battle" ? `${dist.toFixed(1)} m` : "—",
+      gapText: this.phase === "battle" && nearest ? `${dist.toFixed(1)} m` : "—",
       lastHit: this.lastHit,
       overlay: { ...this.overlay },
     });
@@ -1745,12 +2010,12 @@ export class WarriorGame {
   saveGame(silent = false) {
     const prev = loadSavedGame() || {};
     const snapshot = {
-      difficulty: this.difficulty, modeId: this.modeId,
+      difficulty: this.difficulty, modeId: this.modeId, beastId: this.beastId,
       wins: prev.wins || 0, matches: prev.matches || 0,
     };
     if (this.phase === "ended" && !this.mode.passive) {
       snapshot.matches = (prev.matches || 0) + 1;
-      if (this.foe.hp <= 0 && this.my.hp > 0) snapshot.wins = (prev.wins || 0) + 1;
+      if (this.livingFoes().length === 0 && this.my.hp > 0) snapshot.wins = (prev.wins || 0) + 1;
     }
     saveGameState(snapshot);
     if (!silent) {
@@ -1763,6 +2028,7 @@ export class WarriorGame {
     const snap = loadSavedGame();
     if (!snap) return false;
     if (DIFFICULTY_PRESETS[snap.difficulty]) this.difficulty = snap.difficulty;
+    if (BEAST_LOADOUTS[snap.beastId]) this.beastId = snap.beastId;
     if (GAME_MODES[snap.modeId]) {
       this.modeId = snap.modeId;
       this.mode = getModeConfig(snap.modeId);

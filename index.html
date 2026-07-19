@@ -12,21 +12,21 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A6%81%3C/text%3E%3C/svg%3E" />
-    <title>3D 參孫打獅子・真3D競技場 Samson Arena 3D</title>
+    <title>3D 大衛打獅熊・護羊之戰 David vs Lion &amp; Bear 3D</title>
   </head>
   <body>
     <div class="app-shell">
-      <canvas id="gameCanvas" aria-label="3D 參孫打獅子遊戲畫面"></canvas>
+      <canvas id="gameCanvas" aria-label="3D 大衛打獅熊遊戲畫面"></canvas>
 
       <div class="top-bar">
         <div class="score-card team-home">
-          <span class="score-label">參孫(我)血量</span>
+          <span class="score-label">大衛(我)血量</span>
           <strong id="myScoreLabel">100</strong>
         </div>
         <div class="center-board">
           <div class="clock-stack period-stack">
             <span class="mini-label">模式</span>
-            <strong id="modeCode">鬥獅之戰</strong>
+            <strong id="modeCode">護羊之戰</strong>
           </div>
           <div class="clock-stack">
             <span class="mini-label">回合</span>
@@ -40,36 +40,36 @@
           </div>
         </div>
         <div class="score-card team-away">
-          <span class="score-label">獅子血量</span>
+          <span class="score-label">野獸血量</span>
           <strong id="aiScoreLabel">100</strong>
         </div>
       </div>
 
       <button id="pauseButton" class="pause-fab">暫停</button>
 
-      <div class="message-ribbon" id="statusMessage">選擇模式後開始比武。</div>
+      <div class="message-ribbon" id="statusMessage">選擇模式與野獸陣容後開始。</div>
       <div class="commentary-bar" id="commentaryBar" hidden></div>
 
       <aside class="side-panel">
         <div class="panel-block hero-panel">
-          <p class="eyebrow">JUDGES 14・士師記十四章</p>
-          <h1>3D 參孫打獅子</h1>
+          <p class="eyebrow">1 SAMUEL 17・撒母耳記上十七章</p>
+          <h1>3D 大衛打獅熊</h1>
           <p class="panel-copy">
-            參孫獨自一人到了亭拿的葡萄園,一隻少壯獅子向他吼叫。他手無器械,卻倚靠耶和華的靈,赤手空拳制伏猛獅——不流血、點到為止,以信心會友!
+            少年牧人大衛在伯利恆曠野為父親放羊——有時來了獅子,有時來了熊,從群中叼走羊羔。他追趕擊打,把羊羔從野獸口中救出來;倚靠耶和華,不流血、點到為止!
           </p>
         </div>
 
         <div class="panel-block compact-grid">
           <div>
             <span class="mini-label">遊戲模式</span>
-            <strong id="modeLabel">鬥獅之戰</strong>
+            <strong id="modeLabel">護羊之戰</strong>
           </div>
           <div>
             <span class="mini-label">難度</span>
             <strong id="difficultyLabel">標準</strong>
           </div>
           <div>
-            <span class="mini-label">與獅子距離</span>
+            <span class="mini-label">與野獸距離</span>
             <strong id="gapSideLabel">—</strong>
           </div>
           <div>
@@ -123,11 +123,11 @@
           <p>走位: WASD(前進/後退/轉向)｜衝刺: 按住 Shift</p>
           <p>輕拳: J(快、傷害低)</p>
           <p>重拳: K(可蓄力,慢、傷害高、命中擊退;點畫面/空白鍵亦可)</p>
-          <p>聖靈金光: 長按重拳鍵 0.6 秒放開——金色光波,大傷害(士14:6)!</p>
+          <p>聖靈金光: 長按重拳鍵 0.6 秒放開——金色光波,可一次穿透多隻野獸(撒上16:13)!</p>
           <p>格擋: 按住 C——正面舉臂防禦,近戰減傷;剛舉起被打=完美格擋!</p>
-          <p>自動面向: 獅子靠近時自動轉身對準(A/D 或前進時不干預)</p>
-          <p>蜂蜜: 場上偶爾出現野地的蜂蜜,走近即可回血 25%</p>
-          <p>小心: 獅子紅色扇形預告代表牠即將撲咬,快閃開!</p>
+          <p>自動面向: 自動轉身對準最近的野獸(A/D 或前進時不干預)</p>
+          <p>蜂蜜: 場上偶爾出現野地的蜂蜜,走近即可回血 25%(多獸時更常出現)</p>
+          <p>小心: 紅色扇形預告代表野獸即將撲擊,快閃開!熊出手慢但更痛!</p>
           <p>視角: V｜暫停: Esc / P</p>
         </div>
       </aside>
@@ -164,10 +164,10 @@
         <div class="home-backdrop"></div>
         <div class="home-content">
           <div class="home-hero">
-            <p class="eyebrow">JUDGES 14・士師記十四章</p>
-            <h2>參孫打獅子,真 3D 競技場!</h2>
+            <p class="eyebrow">1 SAMUEL 17・撒母耳記上十七章</p>
+            <h2>大衛打獅熊,真 3D 護羊之戰!</h2>
             <p>
-              「參孫跟他父母下亭拿去,到了亭拿的葡萄園,見有一隻少壯獅子向他吼叫。耶和華的靈大大感動參孫,他雖然手無器械,卻將獅子撕裂,如同撕裂山羊羔一樣。」——士師記十四章五至六節。赤手空拳,自由走位,輕拳快打、重拳蓄力聖靈金光,制伏獅子!
+              「你僕人為父親放羊,有時來了獅子,有時來了熊,從群中啣一隻羊羔去。我就追趕他,擊打他,將羊羔從他口中救出來。」——撒母耳記上十七章三十四至三十五節。選獅、選熊,或獅熊一起上,一隻到三隻——赤手空拳,自由走位,倚靠耶和華救回羊羔!
             </p>
           </div>
 
@@ -176,16 +176,16 @@
               <p class="eyebrow">遊戲模式</p>
               <div class="mode-card-grid" id="modeCardGrid">
                 <button class="mode-card" data-mode="duel">
-                  <strong>鬥獅之戰</strong>
-                  <span>各 100 血,打光獅子血量獲勝</span>
+                  <strong>護羊之戰</strong>
+                  <span>大衛 100 血,打光野獸血量獲勝</span>
                 </button>
                 <button class="mode-card" data-mode="epic">
-                  <strong>與獅纏鬥</strong>
+                  <strong>與獸纏鬥</strong>
                   <span>各 300 血馬拉松,戰滿三百回合以血量判定</span>
                 </button>
                 <button class="mode-card" data-mode="practice">
-                  <strong>練習場</strong>
-                  <span>獅子只走位不攻擊,自由練習輕重拳手感</span>
+                  <strong>牧場練習</strong>
+                  <span>野獸只走位不攻擊,自由練習輕重拳手感</span>
                 </button>
               </div>
               <p id="modeDescription" class="mode-description"></p>
@@ -193,14 +193,25 @@
 
             <section class="home-card">
               <p class="eyebrow">比賽設定</p>
+              <label class="field-label" for="beastSelect">野獸陣容(BOSS 種類×數量)</label>
+              <select id="beastSelect">
+                <option value="lion1">🦁 獅子 ×1</option>
+                <option value="lion2">🦁🦁 獅子 ×2</option>
+                <option value="lion3">🦁🦁🦁 獅子 ×3</option>
+                <option value="bear1">🐻 熊 ×1</option>
+                <option value="bear2">🐻🐻 熊 ×2</option>
+                <option value="bear3">🐻🐻🐻 熊 ×3</option>
+                <option value="both">🦁🐻 獅+熊 雙獸夾攻</option>
+              </select>
+
               <label class="field-label" for="menuDifficultySelect">難度</label>
               <select id="menuDifficultySelect">
                 <option value="kids">幼兒（超簡單）</option>
                 <option value="child">兒童（簡單）</option>
                 <option value="easy">入門</option>
                 <option value="normal">標準</option>
-                <option value="hard">全力獅王</option>
-                <option value="death">死神(黑獅)⚠ 膽小勿入</option>
+                <option value="hard">全力獸王</option>
+                <option value="death">死神(黑獸)⚠ 膽小勿入</option>
               </select>
 
               <label class="field-label" for="audioSelect">音效與播報</label>
@@ -212,11 +223,11 @@
               <div class="home-mode-meta">
                 <div>
                   <span class="mini-label">模式摘要</span>
-                  <strong id="modeMetaTitle">鬥獅之戰</strong>
+                  <strong id="modeMetaTitle">護羊之戰</strong>
                 </div>
                 <div>
                   <span class="mini-label">目標</span>
-                  <strong id="modeMetaGoal">打光獅子血量</strong>
+                  <strong id="modeMetaGoal">打光野獸血量</strong>
                 </div>
               </div>
             </section>
@@ -245,10 +256,10 @@
     } catch (_) {}
   };
   try {
-    var psK = 'ps-last-samson3d';
+    var psK = 'ps-last-davidbeasts3d';
     var psLast = parseInt(localStorage.getItem(psK) || '0', 10);
-    if (Date.now() - psLast > 600000) { localStorage.setItem(psK, String(Date.now())); window.psPing('samson3d'); }
-  } catch (_) { window.psPing('samson3d'); }
+    if (Date.now() - psLast > 600000) { localStorage.setItem(psK, String(Date.now())); window.psPing('davidbeasts3d'); }
+  } catch (_) { window.psPing('davidbeasts3d'); }
 </script>
 </body>
 </html>
