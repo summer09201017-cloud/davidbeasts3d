@@ -258,6 +258,10 @@ function handleGameEvent(event) {
       break;
     }
     case "match-end": {
+      try { if (!['localhost','127.0.0.1'].includes(location.hostname)) {   // -done:玩完一局(t=本局秒數,/stats 使用次數與平均停留吃這個)
+        var __dt = Math.round((Date.now() - (window.__matchT0 || Date.now())) / 1000);
+        navigator.sendBeacon?.('https://hfpc-play-stats.summer09201017.workers.dev/api/ping?g=davidbeasts3d-done&t=' + __dt);
+      } } catch (_) {}
       if (!event.win && game.difficulty === "death") playDarkHand(); // 死神模式限定:黑手抓心壞結局(嚇一下就收)
       const winText = "耶和華救大衛脫離獅子和熊的爪!羊羔救回來了!🦁🐻";
       const loseText = "再試一次——能力不在乎自己,在乎耶和華。";
@@ -346,6 +350,7 @@ ui.audioSelect.addEventListener("change", (event) => {
 });
 
 ui.startMatchButton.addEventListener("click", () => {
+  window.__matchT0 = Date.now();   // -done beacon 用:本局開始時間
   unlockAudio();
   audio.uiTap();
   window.psPing?.("davidbeasts3d-start");
