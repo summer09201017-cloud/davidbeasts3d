@@ -392,6 +392,242 @@ function makeTelegraph(pounce) {
   return telegraph;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   🧸 tsum 圓萌野獸(2026-07-30;使用者拍板的全艦隊畫風政策:**動物一律 tsum**)
+   ★ 定案來源=尋羊記 sheepquest/index.html 的 makeBeast(**已截圖驗收通過**)。
+     skill `tsum-3d-kit` 要以那一版為準;這裡是照本遊戲的骨架重寫,**不是直接搬**。
+   ★ 兩邊骨架不同,照抄一定壞:尋羊記的頭朝 local **+x**、身體是一顆豆子、沒有真的腿;
+     本遊戲的頭朝 **+z**、身體是水平方塊、**有四條會走路的腿**。
+   ★ 因此本次**只換視覺外殼**,以下一律不動(動了就會出事):
+       · 腿的 pivot/joint 結構與所有 y 值 → 動了腳會浮空或穿地(walk cycle 靠它);
+       · rig 的原點與 telegraph 的 y=-0.6 → 動了紅色攻擊預告扇形會跑掉(判定=畫面);
+       · 回傳的 { group, rig, head, legs, tailPivot, telegraph, bodyMat, maneMat } 接口。
+   ★ 腿刻意**不做成 tsum 的小圓球**:這關的獸會走過來撲你,腿看不出動作就違反
+     「判定=畫面」。做法是保留骨架、只把積木換成圓的(圓胖大腿+球狀腳掌)。
+   ★ 一個開關:TSUM_BEASTS=false 就整個回到原本的寫實野獸(方便日後接年齡分級)。
+   ★ 認得出來的輪廓線索(tsum 化最容易漏的一條,狼就是漏了被使用者退件):
+     獅=兩層重疊的鬃毛球 + 尖立耳;熊=最圓最胖 + 肩隆 + 圓耳 + 短尾。
+   ══════════════════════════════════════════════════════════════════════════════ */
+const TSUM_BEASTS = true;
+
+const tmat = (c, rough = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: rough });
+// 壓扁/拉長的球:tsum 造型的主要積木
+function tblob(r, mat, sx = 1, sy = 1, sz = 1, seg = 14) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg, seg), mat);
+  m.scale.set(sx, sy, sz);
+  return m;
+}
+/* 🧸 tsum 圓萌臉(大眼 + 水潤雙高光 + 深笑 + 腮紅)。
+   ★ 本遊戲的臉朝 **+z**(尋羊記是 +x)—— 所有「往前」都是 +z,別把兩邊的軸搞混。
+   ★ 眼睛保留「白+瞳」的臉部鐵則(colors.eye / colors.pupil),死神模式換色才生效。 */
+function tsumFaceZ(parent, o) {
+  const R = o.r, front = R * 0.86, eyeR = R * o.eye;
+  const whiteMat = new THREE.MeshBasicMaterial({ color: o.eyeColor });
+  const pupilMat = new THREE.MeshBasicMaterial({ color: o.pupilColor });
+  const hiMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  for (const sx of [-1, 1]) {
+    const white = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 12, 12), whiteMat);
+    white.position.set(sx * R * o.eyeGap, R * 0.1, front);
+    parent.add(white);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.72, 10, 10), pupilMat);
+    pupil.position.set(sx * R * o.eyeGap, R * 0.1, front + eyeR * 0.4);
+    parent.add(pupil);
+    const hi = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.3, 8, 8), hiMat);    // 水潤高光①
+    hi.position.set(sx * (R * o.eyeGap + eyeR * 0.26), R * 0.1 + eyeR * 0.38, front + eyeR * 0.62);
+    parent.add(hi);
+    const hi2 = new THREE.Mesh(new THREE.SphereGeometry(eyeR * 0.15, 6, 6), hiMat);  // 水潤高光②
+    hi2.position.set(sx * (R * o.eyeGap - eyeR * 0.3), R * 0.1 - eyeR * 0.42, front + eyeR * 0.6);
+    parent.add(hi2);
+    if (o.blush) {                                                                   // 腮紅
+      const bl = tblob(R * 0.17, tmat(o.blush, 0.9), 1, 0.75, 0.4, 8);
+      bl.position.set(sx * R * (o.eyeGap + 0.34), -R * 0.16, front * 0.86);
+      parent.add(bl);
+    }
+  }
+  // 深笑:半圈甜甜圈當嘴,開口朝下=笑
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(R * 0.2, R * 0.045, 6, 14, Math.PI), tmat(o.mouth, 0.9));
+  smile.position.set(0, -R * (o.mouthY ?? 0.3), front + R * 0.06);
+  smile.rotation.z = Math.PI;
+  parent.add(smile);
+}
+/* 圓胖版的腿:**關節結構與所有 y 值和 makeBeastLeg 完全一樣**(walk cycle 與腳貼地靠它),
+   只把「膠囊+方塊腳掌」換成「圓胖膠囊+球狀腳掌」。一個 y 都不能改。 */
+function makeTsumLeg(x, z, legMat, pawMat, thick = 1, pivotY = 0.62) {
+  const pivot = new THREE.Group();
+  pivot.position.set(x, pivotY, z);
+  const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.13 * thick, 0.2, 4, 10), legMat);
+  thigh.position.y = -0.15;
+  pivot.add(thigh);
+  const joint = new THREE.Group();
+  joint.position.y = -0.3;
+  pivot.add(joint);
+  const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.115 * thick, 0.16, 4, 10), legMat);
+  shin.position.y = -0.13;
+  joint.add(shin);
+  const paw = tblob(0.13 * thick, pawMat, 1.05, 0.85, 1.15, 10);      // 球狀腳掌(不是方塊)
+  paw.position.set(0, -0.245, 0.03);
+  joint.add(paw);
+  return { pivot, joint };
+}
+
+function makeLionTsum(colors = LION_COLORS) {
+  const group = new THREE.Group();
+  const rig = new THREE.Group();
+  group.add(rig);
+  const bodyMat = tmat(colors.body);
+  const bellyMat = tmat(colors.belly);
+  const maneMat = tmat(colors.mane, 0.95);
+  const pawMat = tmat(colors.paw);
+  const noseMat = new THREE.MeshBasicMaterial({ color: colors.nose });
+
+  // 圓團身體(豆子形;長度對齊原本方塊軀幹的 1.15,才不會改變命中距離的觀感)
+  const BR = 0.42, BY = 0.62;
+  const body = tblob(BR, bodyMat, 0.98, 0.94, 1.36);
+  body.position.set(0, BY, 0);
+  rig.add(body);
+  const belly = tblob(BR * 0.74, bellyMat, 0.95, 0.66, 1.2);          // 淺色肚子,讓側面有層次
+  belly.position.set(0, BY - BR * 0.42, 0.02);
+  rig.add(belly);
+
+  // 頭:幾乎和身體一樣大的圓球,黏在前端(tsum 的比例=頭大身大、四肢小)
+  const HR = 0.4, HY = 0.8, HZ = 0.62;
+  const head = tblob(HR, bodyMat, 1, 0.97, 1);
+  head.position.set(0, HY, HZ);
+  rig.add(head);
+  const face = new THREE.Group();                                     // 臉的零件掛這裡(不影響回傳的 head)
+  face.position.set(0, HY, HZ);
+  rig.add(face);
+  const snout = tblob(HR * 0.46, bellyMat, 1.1, 0.8, 1.15, 12);
+  snout.position.set(0, -HR * 0.22, HR * 0.74);
+  face.add(snout);
+  const nose = tblob(HR * 0.16, noseMat, 1.2, 0.85, 1, 8);
+  nose.position.set(0, -HR * 0.14, HR * 1.12);
+  face.add(nose);
+  tsumFaceZ(face, {
+    r: HR, eye: 0.3, eyeGap: 0.36, mouthY: 0.34,
+    eyeColor: colors.eye, pupilColor: colors.pupil, mouth: colors.snout, blush: 0xe08b86,
+  });
+  /* 🦁 鬃毛:**前後兩層互相重疊的小毛球**(定案,尋羊記改了 5 版才對)。
+     絕不要用一圈粗甜甜圈 —— 那會變成「咖啡色大喇叭口」把臉吃掉(0730 被使用者退件);
+     也不要太小太疏(會變成一串珠子)或只做一層(會變成背上的鬃冠)。
+     圈在 XY 平面(法線=+z=臉的方向),整圈往後推才不會蓋臉。*/
+  for (const [mz, mr, off] of [[-0.18, 0.9, 0], [-0.48, 1.0, 0.5]]) {
+    const N = 11;
+    for (let i = 0; i < N; i++) {
+      const a = ((i + off) / N) * Math.PI * 2;
+      const fluff = new THREE.Mesh(new THREE.SphereGeometry(HR * 0.32, 8, 8), maneMat);
+      fluff.position.set(Math.cos(a) * HR * mr, HY + Math.sin(a) * HR * mr, HZ + HR * mz);
+      rig.add(fluff);
+    }
+  }
+  /* 耳朵:尖立耳,而且**要推到鬃毛帶外面**(半徑 1.24×HR)。
+     0730 幾何驗算抓到:耳朵留在原半徑會整個被鬃毛埋掉,違反臉部鐵則「眼耳嘴眉齊」。
+     ⚠ 鬃毛尺寸與耳朵位置是一組的,改一個一定要重算另一個。*/
+  for (const sx of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.ConeGeometry(HR * 0.26, HR * 0.62, 10), maneMat);
+    ear.position.set(sx * HR * 0.74, HY + HR * 1.0, HZ - HR * 0.1);
+    ear.rotation.z = sx * -0.2;
+    rig.add(ear);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(HR * 0.1, 8, 8), tmat(0xd79a94, 0.9));
+    inner.position.set(sx * HR * 0.72, HY + HR * 1.02, HZ - HR * 0.04);
+    rig.add(inner);
+  }
+
+  const legs = {
+    fl: makeTsumLeg(-0.2, 0.42, bodyMat, pawMat),
+    fr: makeTsumLeg(0.2, 0.42, bodyMat, pawMat),
+    bl: makeTsumLeg(-0.2, -0.42, bodyMat, pawMat),
+    br: makeTsumLeg(0.2, -0.42, bodyMat, pawMat),
+  };
+  for (const leg of Object.values(legs)) rig.add(leg.pivot);
+
+  // 尾巴:一串由小到大的毛球(細圓柱在圓身旁邊等於一根牙籤);尾端用鬃色=獅子的毛球尖
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0, BY + 0.08, -0.56);
+  [0.35, 0.7, 1.0].forEach((f, i) => {
+    const r = 0.105 * (0.8 + 0.28 * f);
+    const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 10), i === 2 ? maneMat : tmat(colors.tailTuft));
+    b.position.set(0, 0.04 * f, -0.54 * f);
+    tailPivot.add(b);
+  });
+  rig.add(tailPivot);
+
+  const telegraph = makeTelegraph(BEAST_TYPES.lion.pounce);
+  rig.add(telegraph);
+  return { group, rig, head, legs, tailPivot, telegraph, bodyMat, maneMat };
+}
+
+function makeBearTsum(colors = BEAR_COLORS) {
+  const group = new THREE.Group();
+  const rig = new THREE.Group();
+  group.add(rig);
+  const bodyMat = tmat(colors.body);
+  const bellyMat = tmat(colors.belly);
+  const pawMat = tmat(colors.paw);
+  const noseMat = new THREE.MeshBasicMaterial({ color: colors.nose });
+
+  // 熊=**最圓最胖**(牠的輪廓線索);沿用原本寫實版「整體壯一號」的量感
+  const BR = 0.5, BY = 0.62;
+  const body = tblob(BR, bodyMat, 1.04, 0.98, 1.24);
+  body.position.set(0, BY, 0);
+  rig.add(body);
+  const hump = tblob(BR * 0.62, bodyMat, 0.95, 0.8, 0.9);             // 肩隆(熊的招牌)
+  hump.position.set(0, BY + BR * 0.5, 0.14);
+  rig.add(hump);
+  const belly = tblob(BR * 0.72, bellyMat, 0.95, 0.62, 1.1);
+  belly.position.set(0, BY - BR * 0.44, 0.02);
+  rig.add(belly);
+
+  const HR = 0.42, HY = 0.86, HZ = 0.66;
+  const head = tblob(HR, bodyMat, 1, 0.97, 1);
+  head.position.set(0, HY, HZ);
+  rig.add(head);
+  const face = new THREE.Group();
+  face.position.set(0, HY, HZ);
+  rig.add(face);
+  const snout = tblob(HR * 0.48, tmat(colors.snout), 1.12, 0.8, 1.18, 12);
+  snout.position.set(0, -HR * 0.24, HR * 0.74);
+  face.add(snout);
+  const nose = tblob(HR * 0.17, noseMat, 1.2, 0.85, 1, 8);
+  nose.position.set(0, -HR * 0.16, HR * 1.14);
+  face.add(nose);
+  tsumFaceZ(face, {
+    r: HR, eye: 0.3, eyeGap: 0.36, mouthY: 0.34,
+    eyeColor: colors.eye, pupilColor: colors.pupil, mouth: colors.snout, blush: 0xe08b86,
+  });
+  // 圓耳(熊的輪廓線索之一;尖耳是獅/狼的,熊不能做尖)
+  for (const sx of [-1, 1]) {
+    const ear = tblob(HR * 0.34, bodyMat, 1, 1, 0.6, 10);
+    ear.position.set(sx * HR * 0.62, HY + HR * 0.82, HZ - HR * 0.1);
+    rig.add(ear);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(HR * 0.13, 8, 8), tmat(0xd79a94, 0.9));
+    inner.position.set(sx * HR * 0.6, HY + HR * 0.84, HZ - HR * 0.04);
+    rig.add(inner);
+  }
+
+  const legs = {
+    fl: makeTsumLeg(-0.22, 0.4, bodyMat, pawMat, 1.15),
+    fr: makeTsumLeg(0.22, 0.4, bodyMat, pawMat, 1.15),
+    bl: makeTsumLeg(-0.22, -0.4, bodyMat, pawMat, 1.15),
+    br: makeTsumLeg(0.22, -0.4, bodyMat, pawMat, 1.15),
+  };
+  for (const leg of Object.values(legs)) rig.add(leg.pivot);
+
+  // 熊尾:只有一小截(兩顆球)—— 這也是「認得出是熊」的線索
+  const tailPivot = new THREE.Group();
+  tailPivot.position.set(0, BY + 0.06, -0.6);
+  [0.5, 1.0].forEach((f) => {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(0.13 * (0.8 + 0.28 * f), 10, 10), tmat(colors.bodyDark));
+    b.position.set(0, 0.02 * f, -0.2 * f);
+    tailPivot.add(b);
+  });
+  rig.add(tailPivot);
+
+  const telegraph = makeTelegraph(BEAST_TYPES.bear.pounce);
+  rig.add(telegraph);
+  return { group, rig, head, legs, tailPivot, telegraph, bodyMat, maneMat: bodyMat };
+}
+
 function makeLion(colors = LION_COLORS) {
   const group = new THREE.Group();
   const rig = new THREE.Group();
@@ -556,6 +792,12 @@ function makeBear(colors = BEAR_COLORS) {
 }
 
 function makeBeast(typeId, colors) {
+  /* 🧸 動物一律 tsum(使用者 0730 拍板的全艦隊政策)。
+     TSUM_BEASTS=false 就整個回到原本的寫實野獸——寫實那兩支函式**刻意保留不刪**,
+     因為日後要接「年齡分級」(幼兒/兒童=圓萌、青少年=寫實)時就直接用得上。
+     ⚠ 熊的寫實版有 group.scale.setScalar(1.12)「整體壯一號」;tsum 版**不縮放整體**,
+       而是把身體半徑本身做大(BR 0.42→0.5)+加肩隆 —— 縮放整體會連腿長和腳貼地一起放大。*/
+  if (TSUM_BEASTS) return typeId === "bear" ? makeBearTsum(colors) : makeLionTsum(colors);
   return typeId === "bear" ? makeBear(colors) : makeLion(colors);
 }
 
