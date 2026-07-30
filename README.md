@@ -51,7 +51,13 @@ npx wrangler pages deploy dist --project-name hfpc-davidbeasts3d   # 上線
 
 改了內容 → **一定要 bump `public/sw.js` 的 `CACHE_NAME`**,否則使用者會一直拿到快取的舊版。
 
-線上驗收要注意兩個會害你誤判的陷阱(2026-07-30 在尋羊記踩過):
+線上驗收要注意三個會害你誤判的陷阱(2026-07-30 全部踩過一遍):
 - `?bust=` 對 Cloudflare 靜態資源**沒有用**(query 不算快取鍵)→ 要送
   `curl -H 'Cache-Control: no-cache' -H 'Pragma: no-cache'` 才拿到剛部署的版本。
 - 抓 `/`(根路徑),不要抓 `/index.html`(可能被 307 轉址,拿到 0 bytes 像檔案掛了)。
+- **部署後正式網址約有 1 分鐘傳播延遲**。當下看還是舊版是正常的,不要急著重新部署一輪。
+- ⚠ **Cloudflare Pages 不能用「`.git/config` 是不是 404」驗有沒有外洩** ——
+  Pages 對任何不存在的路徑都回首頁 HTML 且狀態碼 **200**(單頁應用的 fallback),
+  所以那條測試在這裡**一定誤報成「外洩」**。要驗就**看內容**(有沒有 `[core]` / `url = `),
+  不要看狀態碼。(尋羊記是 Worker `--assets`,那邊才會正確回 404。)
+  順帶說:這個 repo 部署的是 `dist/`,`.git` 根本不在裡面,結構上就不可能外洩。
