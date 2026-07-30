@@ -261,6 +261,21 @@
     var psLast = parseInt(localStorage.getItem(psK) || '0', 10);
     if (Date.now() - psLast > 600000) { localStorage.setItem(psK, String(Date.now())); window.psPing('davidbeasts3d'); }
   } catch (_) { window.psPing('davidbeasts3d'); }
+  /* ⏱ 真實停留打點 -dwell(07-25 起全艦隊標配;2026-07-30 補上)——
+     這站本來**只有 -done 沒有 -dwell**,少這一欄統計會「無聲」缺一塊,
+     要好幾天後看 /stats 才會發現。部署守門 dwell-beacon-guard 當場攔下來,是真的漏不是誤判。
+     ★ 遊戲站用「開頁到第一次離開」就夠;**閱讀站不可照抄**(要用 -dwlast + 累計可見時間,
+       否則手機鎖屏會系統性低估)—— 見 skill play-stats-dwell。
+     ★ sent 旗標必要:pagehide 與 visibilitychange 兩個事件都會觸發,不擋就重複計一次。 */
+  (function () {
+    var t0 = Date.now(), sent = false;
+    var bye = function () {
+      if (sent) return; sent = true;
+      window.psPing('davidbeasts3d-dwell', Math.round((Date.now() - t0) / 1000));
+    };
+    addEventListener('pagehide', bye);
+    addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') bye(); });
+  })();
 </script>
 </body>
 </html>

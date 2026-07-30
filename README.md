@@ -37,4 +37,21 @@ node scripts/verify-davidbeasts.mjs http://localhost:4189 scratch   # 六關端�
 
 ## 部署
 
-尚未上架——公開 repo 名/Netlify 站名待使用者逐字點名;部署由主線負責。
+**已上架:https://hfpc-davidbeasts3d.pages.dev**(Cloudflare Pages)
+GitHub:https://github.com/summer09201017-cloud/davidbeasts3d
+
+⚠ 這一段在 2026-07-30 之前一直寫著「尚未上架」,但其實早就上線了(文件脫節)。已更正。
+
+```bash
+npm install          # 本機第一次要先裝(此 repo 預設沒有 node_modules)
+npm run dev          # 本機開發
+npm run build        # 產出 dist/
+npx wrangler pages deploy dist --project-name hfpc-davidbeasts3d   # 上線
+```
+
+改了內容 → **一定要 bump `public/sw.js` 的 `CACHE_NAME`**,否則使用者會一直拿到快取的舊版。
+
+線上驗收要注意兩個會害你誤判的陷阱(2026-07-30 在尋羊記踩過):
+- `?bust=` 對 Cloudflare 靜態資源**沒有用**(query 不算快取鍵)→ 要送
+  `curl -H 'Cache-Control: no-cache' -H 'Pragma: no-cache'` 才拿到剛部署的版本。
+- 抓 `/`(根路徑),不要抓 `/index.html`(可能被 307 轉址,拿到 0 bytes 像檔案掛了)。
